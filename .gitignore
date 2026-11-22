@@ -10,9 +10,8 @@ packages/
 Vox/Logs/*.log
 Vox/Backup_Folder*.bat
 
-# Build output. Rebuild with build.cmd or build-installer.cmd. Release binaries are not kept in
-# git history; attach CCJ-Setup.exe to a GitHub release instead.
-dist/
+# dist/ holds the release build (CCJ.exe, CCJ-Setup.exe and what they need) and IS committed.
+# Rebuild it with build-installer.cmd before committing, so it matches the source.
 
 # The original brief, kept out of the public repository.
 prompt.txt
