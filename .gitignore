@@ -1,0 +1,18 @@
+bin/
+obj/
+packages/
+*.user
+*.suo
+.vs/
+
+# Generated at run time, not source. The real scripts and logs also hold site specific
+# paths, so they are not published.
+Vox/Logs/*.log
+Vox/Backup_Folder*.bat
+
+# Build output. Rebuild with build.cmd or build-installer.cmd. Release binaries are not kept in
+# git history; attach CCJ-Setup.exe to a GitHub release instead.
+dist/
+
+# The original brief, kept out of the public repository.
+prompt.txt
