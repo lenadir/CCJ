@@ -77,6 +77,7 @@ namespace CCJ.Forms
             note.Location = new Point(16, y + 6);
             note.Size = new Size(648, 60);
             note.ForeColor = Color.DimGray;
+            note.Tag = Theme.TagHint;
             note.Text = dryRun
                 ? "The dry run script is written to your TEMP folder and logs there too. The NAS " +
                   "destination folder is not created."
@@ -120,6 +121,7 @@ namespace CCJ.Forms
             valueBox.ReadOnly = true;
             valueBox.BorderStyle = BorderStyle.None;
             valueBox.BackColor = this.BackColor;
+            valueBox.Tag = Theme.TagReadOnly;
             valueBox.Text = string.IsNullOrEmpty(value) ? "(not set)" : value;
 
             this.Controls.Add(captionLabel);
@@ -140,12 +142,12 @@ namespace CCJ.Forms
                 string why = plan != null && !plan.Cancelled && !string.IsNullOrEmpty(plan.Error)
                     ? plan.Error
                     : "the check could not be completed.";
-                _plan.ForeColor = Color.DimGray;
+                _plan.ForeColor = Theme.SubtleText;
                 _plan.Text = "unknown - " + why + " The copy can still go ahead, but the progress bar will not show a percentage.";
                 return;
             }
 
-            _plan.ForeColor = SystemColors.ControlText;
+            _plan.ForeColor = Theme.Text;
             if (plan.Files == 0)
             {
                 _plan.Text = "nothing - the destination is already up to date.";

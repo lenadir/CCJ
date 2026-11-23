@@ -42,8 +42,10 @@ is in `USER-MANUAL.md`, which is installed alongside the program.
 
 **1. Set up the jobs.** Start CCJ **as administrator** (right-click → Run as administrator — it
 needs this to create scheduled tasks). On the **Jobs** tab fill in the source UNC, NAS root UNC,
-NAS folder and a Sunday date for each of the three jobs, tick **Enabled**, then press **Save**
-and enter the Windows password of the account the backups run as.
+NAS folder, a Sunday date and the time of day for each job you want — one job is enough, and
+**Add another job** gives you more. Tick **Enabled** on the ones that should run, then press
+**Save** and enter the Windows password of the account the backups run as. Jobs you leave empty
+are skipped.
 
 **2. Store the NAS credentials.** Signed in as *that same account*, open Credential Manager
 (CCJ's **Check credentials** button opens it) and add a Windows credential for each of the two
@@ -53,7 +55,7 @@ The account also needs a **non-blank password**.
 **3. ⚠ Disable the old scheduled tasks.** If this PC already runs the backups from hand-made
 tasks, disable or delete them in `taskschd.msc`. CCJ creates its own tasks named
 `CCJ Backup …`; leaving the old ones enabled means every job runs twice. Look for any task whose
-action points at `Backup_Folder1.bat`, `Backup_Folder2.bat` or `Backup_Folder3.bat`.
+action points at a `Backup_*.bat` file.
 
 Then verify, in this order: **Check connectivity** → **Check credentials** → **Test (dry run)**
 on each job. The dry run copies nothing.
@@ -96,7 +98,7 @@ to the same path on the new PC, then open the **Jobs** tab and correct the **Scr
 folder** — the copied file still points at the old PC's path. Press **Save** so the scripts and
 tasks are regenerated locally.
 
-Otherwise just retype the three jobs. It takes a minute.
+Otherwise just retype the jobs. It takes a minute.
 
 ---
 
@@ -113,8 +115,7 @@ so the `.bat` files are regenerated from the new template.
 **Settings → Apps → Installed apps → CCJ → Uninstall**, or run `Uninstall-CCJ.exe` from the
 install folder. Silent: `Uninstall-CCJ.exe /uninstall /S`.
 
-It removes the program, the shortcuts, the Apps entry and the three `CCJ Backup` scheduled
-tasks. It deliberately **keeps** your logs and generated scripts in `C:\Vox`, and your settings
+It removes the program, the shortcuts, the Apps entry and the `CCJ Backup` scheduled tasks. It deliberately **keeps** your logs and generated scripts in `C:\Vox`, and your settings
 in `%APPDATA%\CCJ`. **Nothing on the NAS is ever touched.**
 
 ---

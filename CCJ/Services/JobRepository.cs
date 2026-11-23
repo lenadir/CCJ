@@ -75,8 +75,13 @@ namespace CCJ.Services
         }
 
         /// <summary>
-        /// Makes sure a loaded file always has the three fixed jobs and a usable Vox root, so the
-        /// UI never has to cope with a half filled settings file.
+        /// Makes a loaded file usable without changing what the user chose. Every stored job is
+        /// kept, in its stored order, however many there are: the number of jobs is the user's, not
+        /// the program's. Only genuinely unusable parts are filled in - a missing Vox root, a
+        /// missing or duplicated key, a date that was never set.
+        ///
+        /// A file with no jobs at all gets the three starter jobs, which is what a brand new
+        /// installation sees.
         /// </summary>
         private static JobsFile Repair(JobsFile file)
         {
@@ -86,32 +91,45 @@ namespace CCJ.Services
             if (string.IsNullOrEmpty(file.VoxRoot))
                 file.VoxRoot = AppPaths.GuessVoxRoot();
 
-            JobsFile defaults = JobsFile.CreateDefault();
-            List<JobConfig> ordered = new List<JobConfig>();
-
-            foreach (JobConfig template in defaults.Jobs)
+            if (file.Jobs.Count == 0)
             {
-                JobConfig existing = file.FindByKey(template.Key);
-                if (existing == null)
+                JobsFile defaults = JobsFile.CreateDefault();
+                file.Jobs = defaults.Jobs;
+            }
+            else
+            {
+                HashSet<string> used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (JobConfig job in file.Jobs)
                 {
-                    ordered.Add(template);
-                    continue;
+                    string key = job.Key == null ? "" : job.Key.Trim();
+                    if (key.Length == 0 || used.Contains(key))
+                        key = NextFreeKey(used);
+
+                    job.Key = key;
+                    used.Add(key);
+
+                    if (string.IsNullOrEmpty(job.JobName)) job.JobName = key;
+                    if (job.SourcePath == null) job.SourcePath = "";
+                    if (job.NasRoot == null) job.NasRoot = "";
+                    if (job.NasFolder == null) job.NasFolder = "";
+                    if (job.FirstRunDate == default(DateTime))
+                        job.FirstRunDate = JobsFile.NextSunday();
                 }
-
-                existing.Key = template.Key;
-                if (string.IsNullOrEmpty(existing.JobName)) existing.JobName = template.JobName;
-                if (string.IsNullOrEmpty(existing.SourcePath)) existing.SourcePath = template.SourcePath;
-                if (string.IsNullOrEmpty(existing.NasRoot)) existing.NasRoot = template.NasRoot;
-                if (string.IsNullOrEmpty(existing.NasFolder)) existing.NasFolder = template.NasFolder;
-                if (existing.FirstRunDate == default(DateTime))
-                    existing.FirstRunDate = template.FirstRunDate;
-
-                ordered.Add(existing);
             }
 
-            file.Jobs = ordered;
             if (file.Version <= 0) file.Version = 1;
             return file;
+        }
+
+        private static string NextFreeKey(HashSet<string> used)
+        {
+            for (int i = 1; i < 10000; i++)
+            {
+                string candidate = "Folder" + i;
+                if (!used.Contains(candidate)) return candidate;
+            }
+            return "Folder" + Guid.NewGuid().ToString("N").Substring(0, 8);
         }
 
         private void QuarantineBadFile()

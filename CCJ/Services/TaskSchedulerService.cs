@@ -64,7 +64,10 @@ namespace CCJ.Services
                 WeeklyTrigger trigger = new WeeklyTrigger();
                 trigger.DaysOfWeek = DaysOfTheWeek.Sunday;
                 trigger.WeeksInterval = WeeksInterval;
-                trigger.StartBoundary = job.FirstRunDate.Date;
+
+                // Date and time both come from the job, so the run can be put at a quiet hour
+                // instead of always midnight.
+                trigger.StartBoundary = job.FirstRunDate;
                 definition.Triggers.Add(trigger);
 
                 definition.Actions.Add(new ExecAction(Quote(scriptPath), null, voxRoot));
@@ -84,7 +87,7 @@ namespace CCJ.Services
 
             AppLog.Info("Registered task \"" + job.TaskName + "\" for " + scriptPath +
                         " (enabled=" + job.Enabled + ", first run " +
-                        job.FirstRunDate.ToString("yyyy-MM-dd") + ", every " + WeeksInterval +
+                        job.FirstRunDate.ToString("yyyy-MM-dd HH:mm") + ", every " + WeeksInterval +
                         " weeks on Sunday).");
         }
 
@@ -147,6 +150,24 @@ namespace CCJ.Services
                 }
                 task.Run();
                 AppLog.Info("Task \"" + job.TaskName + "\" started on request.");
+            }
+        }
+
+        /// <summary>
+        /// Asks Task Scheduler to end the run. It ends the script, but robocopy is a child process
+        /// and can outlive it, which is why <see cref="CopyControl"/> also deals with robocopy
+        /// itself. Nothing on the destination is removed: whatever had been copied stays.
+        /// </summary>
+        public bool Stop(JobConfig job)
+        {
+            using (TaskService service = new TaskService())
+            {
+                Task task = service.GetTask(job.TaskName);
+                if (task == null) return false;
+
+                task.Stop();
+                AppLog.Info("Task \"" + job.TaskName + "\" was stopped on request.");
+                return true;
             }
         }
 

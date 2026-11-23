@@ -346,7 +346,7 @@ namespace CCJ.Setup
             {
                 DialogResult answer = MessageBox.Show(
                     "Remove CCJ from this PC?\r\n\r\n" +
-                    "The three \"CCJ Backup\" scheduled tasks are removed as well.\r\n\r\n" +
+                    "Every \"CCJ Backup\" scheduled task is removed as well.\r\n\r\n" +
                     "Your logs and generated scripts in the script and log folder are KEPT, and " +
                     "nothing on the NAS is touched.",
                     "Uninstall CCJ", MessageBoxButtons.YesNo, MessageBoxIcon.Question);

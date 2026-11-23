@@ -164,6 +164,48 @@ namespace CCJ.Services
                   Validation.IsValidUncPath(@"\\192.168.100.100\3G eng"), "");
             Check("local path rejected as UNC", !Validation.IsValidUncPath(@"C:\Vox"), "");
 
+            // 6b. Jobs the user adds and leaves empty, and the time of the weekly run.
+            JobsFile file = JobsFile.CreateDefault();
+            Check("three starter jobs", file.Jobs.Count == 3, file.Jobs.Count + " jobs");
+
+            JobConfig added = file.AddJob();
+            Check("a new job gets a free key", added.Key == "Folder4", added.Key);
+            Check("a new job starts empty, so it is skipped", added.IsBlank, "");
+            Check("an empty job is left out when saving",
+                  file.WithoutBlankJobs().Jobs.Count == 3, file.WithoutBlankJobs().Jobs.Count + " kept");
+
+            JobConfig oneOnly = new JobConfig();
+            oneOnly.Key = "Folder1";
+            oneOnly.JobName = "Folder1";
+            oneOnly.SourcePath = @"\\host\share";
+            oneOnly.NasRoot = @"\\nas\share";
+            oneOnly.NasFolder = "Folder1";
+            oneOnly.FirstRunDate = JobsFile.NextSunday().AddHours(2).AddMinutes(30);
+
+            JobsFile single = new JobsFile();
+            single.VoxRoot = voxRoot;
+            single.Jobs.Add(oneOnly);
+            Check("one filled in job is enough to save", Validation.ValidateFile(single).Count == 0, "");
+            Check("a run time other than midnight is allowed",
+                  Validation.ValidateJob(oneOnly).Count == 0, "02:30 on a Sunday");
+
+            // 6c. Finding the robocopy process of a run, which is what Pause, Resume and Stop act on.
+            string runLog = @"C:\Vox\Logs\NADIR_2026-11-22_00-00-05.log";
+            string commandLine = "robocopy \"\\\\src\\vox\" \"\\\\nas\\share\\NADIR\" " +
+                                 ScriptGenerator.RobocopyOptions + " /LOG:\"" + runLog + "\"";
+
+            Check("the run's robocopy is matched by its log",
+                  CopyControl.MatchesJob(commandLine, runLog, @"C:\Vox\Logs", "NADIR"), "");
+            Check("another run of the same job is not matched",
+                  !CopyControl.MatchesJob(commandLine, @"C:\Vox\Logs\NADIR_2026-11-29_00-00-07.log",
+                                          @"C:\Vox\Logs", "NADIR"), "");
+            Check("a dry run of the same job is not matched",
+                  !CopyControl.MatchesJob(
+                      commandLine.Replace(@"C:\Vox\Logs", Path.Combine(Path.GetTempPath(), "CCJ_DryRun")),
+                      null, @"C:\Vox\Logs", "NADIR"), "");
+            Check("nothing is suspended when nothing is running",
+                  !CopyControl.Pause(new System.Collections.Generic.List<RunningCopy>()).Ok, "");
+
             // 7. The progress bar: follow a real copy made by the real script.
             CheckProgress(root);
 

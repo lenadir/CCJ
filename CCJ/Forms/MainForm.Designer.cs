@@ -21,6 +21,8 @@ namespace CCJ.Forms
         private System.Windows.Forms.TextBox txtVoxRoot;
         private System.Windows.Forms.Button btnBrowseVoxRoot;
         private System.Windows.Forms.Label lblVoxRootHint;
+        private System.Windows.Forms.Button btnAddJob;
+        private System.Windows.Forms.Label lblJobsHint;
         private System.Windows.Forms.Panel pnlJobEditors;
 
         private System.Windows.Forms.Panel pnlLogToolbar;
@@ -32,13 +34,13 @@ namespace CCJ.Forms
 
         private System.Windows.Forms.Panel pnlButtons;
         private System.Windows.Forms.Button btnSave;
-        private System.Windows.Forms.Button btnPreview;
         private System.Windows.Forms.Button btnRunNow;
+        private System.Windows.Forms.Button btnPause;
+        private System.Windows.Forms.Button btnStop;
         private System.Windows.Forms.Button btnDryRun;
-        private System.Windows.Forms.Button btnToggleEnabled;
-        private System.Windows.Forms.Button btnOpenLogs;
         private System.Windows.Forms.Button btnConnectivity;
         private System.Windows.Forms.Button btnCredentials;
+        private System.Windows.Forms.CheckBox chkDarkMode;
         private System.Windows.Forms.Button btnRefresh;
 
         private System.Windows.Forms.StatusStrip status;
@@ -69,6 +71,8 @@ namespace CCJ.Forms
             this.txtVoxRoot = new System.Windows.Forms.TextBox();
             this.btnBrowseVoxRoot = new System.Windows.Forms.Button();
             this.lblVoxRootHint = new System.Windows.Forms.Label();
+            this.btnAddJob = new System.Windows.Forms.Button();
+            this.lblJobsHint = new System.Windows.Forms.Label();
             this.pnlJobEditors = new System.Windows.Forms.Panel();
             this.pnlLogToolbar = new System.Windows.Forms.Panel();
             this.lblFilter = new System.Windows.Forms.Label();
@@ -78,13 +82,13 @@ namespace CCJ.Forms
             this.txtLog = new System.Windows.Forms.TextBox();
             this.pnlButtons = new System.Windows.Forms.Panel();
             this.btnSave = new System.Windows.Forms.Button();
-            this.btnPreview = new System.Windows.Forms.Button();
             this.btnRunNow = new System.Windows.Forms.Button();
+            this.btnPause = new System.Windows.Forms.Button();
+            this.btnStop = new System.Windows.Forms.Button();
             this.btnDryRun = new System.Windows.Forms.Button();
-            this.btnToggleEnabled = new System.Windows.Forms.Button();
-            this.btnOpenLogs = new System.Windows.Forms.Button();
             this.btnConnectivity = new System.Windows.Forms.Button();
             this.btnCredentials = new System.Windows.Forms.Button();
+            this.chkDarkMode = new System.Windows.Forms.CheckBox();
             this.btnRefresh = new System.Windows.Forms.Button();
             this.status = new System.Windows.Forms.StatusStrip();
             this.statusLabel = new System.Windows.Forms.ToolStripStatusLabel();
@@ -93,6 +97,7 @@ namespace CCJ.Forms
             // pnlElevation
             //
             this.pnlElevation.BackColor = System.Drawing.Color.FromArgb(255, 248, 220);
+            this.pnlElevation.Tag = "banner";
             this.pnlElevation.Controls.Add(this.lblElevation);
             this.pnlElevation.Controls.Add(this.btnElevate);
             this.pnlElevation.Dock = System.Windows.Forms.DockStyle.Top;
@@ -128,6 +133,10 @@ namespace CCJ.Forms
             this.tabs.Controls.Add(this.tabDashboard);
             this.tabs.Controls.Add(this.tabJobs);
             this.tabs.Controls.Add(this.tabLogs);
+            this.tabs.DrawMode = System.Windows.Forms.TabDrawMode.OwnerDrawFixed;
+            this.tabs.ItemSize = new System.Drawing.Size(120, 26);
+            this.tabs.SizeMode = System.Windows.Forms.TabSizeMode.Fixed;
+            this.tabs.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.tabs_DrawItem);
             this.tabs.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabs.Location = new System.Drawing.Point(0, 42);
             this.tabs.Name = "tabs";
@@ -172,6 +181,7 @@ namespace CCJ.Forms
             // lblProgressDetail
             //
             this.lblProgressDetail.BackColor = System.Drawing.Color.FromArgb(244, 247, 251);
+            this.lblProgressDetail.Tag = "surface";
             this.lblProgressDetail.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.lblProgressDetail.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.lblProgressDetail.Location = new System.Drawing.Point(10, 405);
@@ -199,10 +209,12 @@ namespace CCJ.Forms
             this.pnlJobsHeader.Controls.Add(this.txtVoxRoot);
             this.pnlJobsHeader.Controls.Add(this.btnBrowseVoxRoot);
             this.pnlJobsHeader.Controls.Add(this.lblVoxRootHint);
+            this.pnlJobsHeader.Controls.Add(this.btnAddJob);
+            this.pnlJobsHeader.Controls.Add(this.lblJobsHint);
             this.pnlJobsHeader.Dock = System.Windows.Forms.DockStyle.Top;
             this.pnlJobsHeader.Location = new System.Drawing.Point(10, 10);
             this.pnlJobsHeader.Name = "pnlJobsHeader";
-            this.pnlJobsHeader.Size = new System.Drawing.Size(1032, 66);
+            this.pnlJobsHeader.Size = new System.Drawing.Size(1032, 100);
             this.pnlJobsHeader.TabIndex = 0;
             //
             // lblVoxRoot
@@ -239,19 +251,41 @@ namespace CCJ.Forms
             //
             this.lblVoxRootHint.AutoSize = true;
             this.lblVoxRootHint.ForeColor = System.Drawing.Color.DimGray;
+            this.lblVoxRootHint.Tag = "hint";
             this.lblVoxRootHint.Location = new System.Drawing.Point(160, 37);
             this.lblVoxRootHint.Name = "lblVoxRootHint";
             this.lblVoxRootHint.Size = new System.Drawing.Size(700, 15);
             this.lblVoxRootHint.TabIndex = 3;
-            this.lblVoxRootHint.Text = "Backup_Folder1.bat, Backup_Folder2.bat and Backup_Folder3.bat are written here, and logs go to its Logs subfolder.";
+            this.lblVoxRootHint.Text = "One Backup_<job>.bat per job is written here, and logs go to its Logs subfolder.";
+            //
+            // btnAddJob
+            //
+            this.btnAddJob.Location = new System.Drawing.Point(6, 64);
+            this.btnAddJob.Name = "btnAddJob";
+            this.btnAddJob.Size = new System.Drawing.Size(130, 27);
+            this.btnAddJob.TabIndex = 4;
+            this.btnAddJob.Text = "Add another job";
+            this.btnAddJob.UseVisualStyleBackColor = true;
+            this.btnAddJob.Click += new System.EventHandler(this.btnAddJob_Click);
+            //
+            // lblJobsHint
+            //
+            this.lblJobsHint.AutoSize = true;
+            this.lblJobsHint.ForeColor = System.Drawing.Color.DimGray;
+            this.lblJobsHint.Tag = "hint";
+            this.lblJobsHint.Location = new System.Drawing.Point(146, 70);
+            this.lblJobsHint.Name = "lblJobsHint";
+            this.lblJobsHint.Size = new System.Drawing.Size(860, 15);
+            this.lblJobsHint.TabIndex = 5;
+            this.lblJobsHint.Text = "As many jobs as you need. A job you leave empty is skipped, so one filled in job is enough to save and to copy. Enabled takes effect at once.";
             //
             // pnlJobEditors
             //
             this.pnlJobEditors.AutoScroll = true;
             this.pnlJobEditors.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.pnlJobEditors.Location = new System.Drawing.Point(10, 76);
+            this.pnlJobEditors.Location = new System.Drawing.Point(10, 110);
             this.pnlJobEditors.Name = "pnlJobEditors";
-            this.pnlJobEditors.Size = new System.Drawing.Size(1032, 413);
+            this.pnlJobEditors.Size = new System.Drawing.Size(1032, 379);
             this.pnlJobEditors.TabIndex = 1;
             //
             // tabLogs
@@ -310,6 +344,7 @@ namespace CCJ.Forms
             //
             this.lblLogPath.AutoEllipsis = true;
             this.lblLogPath.ForeColor = System.Drawing.Color.DimGray;
+            this.lblLogPath.Tag = "hint";
             this.lblLogPath.Location = new System.Drawing.Point(6, 40);
             this.lblLogPath.Name = "lblLogPath";
             this.lblLogPath.Size = new System.Drawing.Size(1020, 15);
@@ -333,13 +368,13 @@ namespace CCJ.Forms
             // pnlButtons
             //
             this.pnlButtons.Controls.Add(this.btnSave);
-            this.pnlButtons.Controls.Add(this.btnPreview);
             this.pnlButtons.Controls.Add(this.btnRunNow);
+            this.pnlButtons.Controls.Add(this.btnPause);
+            this.pnlButtons.Controls.Add(this.btnStop);
             this.pnlButtons.Controls.Add(this.btnDryRun);
-            this.pnlButtons.Controls.Add(this.btnToggleEnabled);
-            this.pnlButtons.Controls.Add(this.btnOpenLogs);
             this.pnlButtons.Controls.Add(this.btnConnectivity);
             this.pnlButtons.Controls.Add(this.btnCredentials);
+            this.pnlButtons.Controls.Add(this.chkDarkMode);
             this.pnlButtons.Controls.Add(this.btnRefresh);
             this.pnlButtons.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.pnlButtons.Location = new System.Drawing.Point(0, 572);
@@ -352,81 +387,84 @@ namespace CCJ.Forms
             //
             this.btnSave.Location = new System.Drawing.Point(12, 10);
             this.btnSave.Name = "btnSave";
-            this.btnSave.Size = new System.Drawing.Size(150, 32);
+            this.btnSave.Size = new System.Drawing.Size(140, 32);
             this.btnSave.TabIndex = 0;
             this.btnSave.Text = "Save";
             this.btnSave.UseVisualStyleBackColor = true;
             this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
             //
-            // btnPreview
-            //
-            this.btnPreview.Location = new System.Drawing.Point(168, 10);
-            this.btnPreview.Name = "btnPreview";
-            this.btnPreview.Size = new System.Drawing.Size(110, 32);
-            this.btnPreview.TabIndex = 1;
-            this.btnPreview.Text = "Preview";
-            this.btnPreview.UseVisualStyleBackColor = true;
-            this.btnPreview.Click += new System.EventHandler(this.btnPreview_Click);
-            //
             // btnRunNow
             //
-            this.btnRunNow.Location = new System.Drawing.Point(284, 10);
+            this.btnRunNow.Location = new System.Drawing.Point(158, 10);
             this.btnRunNow.Name = "btnRunNow";
-            this.btnRunNow.Size = new System.Drawing.Size(100, 32);
-            this.btnRunNow.TabIndex = 2;
-            this.btnRunNow.Text = "Run now";
+            this.btnRunNow.Size = new System.Drawing.Size(110, 32);
+            this.btnRunNow.TabIndex = 1;
+            this.btnRunNow.Text = "Start copy";
             this.btnRunNow.UseVisualStyleBackColor = true;
             this.btnRunNow.Click += new System.EventHandler(this.btnRunNow_Click);
             //
+            // btnPause
+            //
+            this.btnPause.Location = new System.Drawing.Point(274, 10);
+            this.btnPause.Name = "btnPause";
+            this.btnPause.Size = new System.Drawing.Size(100, 32);
+            this.btnPause.TabIndex = 2;
+            this.btnPause.Text = "Pause";
+            this.btnPause.UseVisualStyleBackColor = true;
+            this.btnPause.Click += new System.EventHandler(this.btnPause_Click);
+            //
+            // btnStop
+            //
+            this.btnStop.Location = new System.Drawing.Point(380, 10);
+            this.btnStop.Name = "btnStop";
+            this.btnStop.Size = new System.Drawing.Size(90, 32);
+            this.btnStop.TabIndex = 3;
+            this.btnStop.Text = "Stop";
+            this.btnStop.UseVisualStyleBackColor = true;
+            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
+            //
             // btnDryRun
             //
-            this.btnDryRun.Location = new System.Drawing.Point(390, 10);
+            this.btnDryRun.Location = new System.Drawing.Point(476, 10);
             this.btnDryRun.Name = "btnDryRun";
             this.btnDryRun.Size = new System.Drawing.Size(120, 32);
-            this.btnDryRun.TabIndex = 3;
+            this.btnDryRun.TabIndex = 4;
             this.btnDryRun.Text = "Test (dry run)";
             this.btnDryRun.UseVisualStyleBackColor = true;
             this.btnDryRun.Click += new System.EventHandler(this.btnDryRun_Click);
             //
-            // btnToggleEnabled
-            //
-            this.btnToggleEnabled.Location = new System.Drawing.Point(516, 10);
-            this.btnToggleEnabled.Name = "btnToggleEnabled";
-            this.btnToggleEnabled.Size = new System.Drawing.Size(120, 32);
-            this.btnToggleEnabled.TabIndex = 4;
-            this.btnToggleEnabled.Text = "Enable/Disable";
-            this.btnToggleEnabled.UseVisualStyleBackColor = true;
-            this.btnToggleEnabled.Click += new System.EventHandler(this.btnToggleEnabled_Click);
-            //
-            // btnOpenLogs
-            //
-            this.btnOpenLogs.Location = new System.Drawing.Point(642, 10);
-            this.btnOpenLogs.Name = "btnOpenLogs";
-            this.btnOpenLogs.Size = new System.Drawing.Size(100, 32);
-            this.btnOpenLogs.TabIndex = 5;
-            this.btnOpenLogs.Text = "Open logs";
-            this.btnOpenLogs.UseVisualStyleBackColor = true;
-            this.btnOpenLogs.Click += new System.EventHandler(this.btnOpenLogs_Click);
-            //
             // btnConnectivity
             //
-            this.btnConnectivity.Location = new System.Drawing.Point(748, 10);
+            this.btnConnectivity.Location = new System.Drawing.Point(610, 10);
             this.btnConnectivity.Name = "btnConnectivity";
             this.btnConnectivity.Size = new System.Drawing.Size(130, 32);
-            this.btnConnectivity.TabIndex = 6;
+            this.btnConnectivity.TabIndex = 5;
             this.btnConnectivity.Text = "Check connectivity";
             this.btnConnectivity.UseVisualStyleBackColor = true;
             this.btnConnectivity.Click += new System.EventHandler(this.btnConnectivity_Click);
             //
             // btnCredentials
             //
-            this.btnCredentials.Location = new System.Drawing.Point(884, 10);
+            this.btnCredentials.Location = new System.Drawing.Point(746, 10);
             this.btnCredentials.Name = "btnCredentials";
             this.btnCredentials.Size = new System.Drawing.Size(130, 32);
-            this.btnCredentials.TabIndex = 7;
+            this.btnCredentials.TabIndex = 6;
             this.btnCredentials.Text = "Check credentials";
             this.btnCredentials.UseVisualStyleBackColor = true;
             this.btnCredentials.Click += new System.EventHandler(this.btnCredentials_Click);
+            //
+            // chkDarkMode
+            //
+            this.chkDarkMode.Anchor = ((System.Windows.Forms.AnchorStyles)(System.Windows.Forms.AnchorStyles.Top
+                | System.Windows.Forms.AnchorStyles.Right));
+            this.chkDarkMode.AutoSize = true;
+            this.chkDarkMode.Location = new System.Drawing.Point(910, 18);
+            this.chkDarkMode.Name = "chkDarkMode";
+            this.chkDarkMode.Size = new System.Drawing.Size(90, 19);
+            this.chkDarkMode.TabIndex = 7;
+            this.chkDarkMode.Text = "Dark mode";
+            this.chkDarkMode.UseVisualStyleBackColor = true;
+            this.chkDarkMode.CheckedChanged += new System.EventHandler(this.chkDarkMode_CheckedChanged);
             //
             // btnRefresh
             //
@@ -436,6 +474,7 @@ namespace CCJ.Forms
             this.btnRefresh.Name = "btnRefresh";
             this.btnRefresh.Size = new System.Drawing.Size(28, 32);
             this.btnRefresh.TabIndex = 8;
+            this.btnRefresh.Tag = "refresh";
             this.btnRefresh.Text = "↻";
             this.btnRefresh.UseVisualStyleBackColor = true;
             this.btnRefresh.Click += new System.EventHandler(this.btnRefresh_Click);

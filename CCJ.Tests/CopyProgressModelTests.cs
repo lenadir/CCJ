@@ -194,6 +194,61 @@ namespace CCJ.Tests
             Assert.That(unknown.Detail, Does.Contain("exit code 16"));
         }
 
+        // ------------------------------------------------------------- paused
+
+        [Test]
+        public void A_paused_run_is_still_an_active_run()
+        {
+            CopyProgress p = Copying(40, 100, 400, 1000);
+            p.Phase = CopyPhase.Paused;
+
+            Assert.That(p.IsActive, Is.True, "it is waiting to be resumed, not over");
+            Assert.That(p.IsRunning, Is.True, "there is a robocopy to resume or stop");
+        }
+
+        [Test]
+        public void A_paused_bar_keeps_the_percentage_it_had_reached()
+        {
+            CopyProgress p = Copying(40, 100, 400, 1000);
+            p.Phase = CopyPhase.Paused;
+
+            Assert.That(p.Fraction.Value, Is.EqualTo(0.4).Within(0.0001));
+            Assert.That(p.BarText, Is.EqualTo("Paused · 40%"));
+        }
+
+        [Test]
+        public void A_paused_bar_says_so_even_with_no_total()
+        {
+            CopyProgress p = Copying(7, null, 0, null);
+            p.Phase = CopyPhase.Paused;
+
+            Assert.That(p.BarText, Does.StartWith("Paused"));
+            Assert.That(p.BarText, Does.Contain("7 files"));
+        }
+
+        [Test]
+        public void A_paused_run_explains_itself_and_still_names_the_file_in_flight()
+        {
+            CopyProgress p = Copying(40, 100, 400, 1000);
+            p.Phase = CopyPhase.Paused;
+            p.CurrentFile = "take 3.wav";
+            p.CurrentFileBytes = 2048;
+
+            Assert.That(p.Detail, Does.Contain("paused"));
+            Assert.That(p.Detail, Does.Contain("take 3.wav"));
+            Assert.That(p.Detail, Does.Contain("Resume"));
+        }
+
+        [Test]
+        public void A_paused_dry_run_is_marked_as_a_dry_run()
+        {
+            CopyProgress p = Copying(1, 2, 1, 2);
+            p.Phase = CopyPhase.Paused;
+            p.IsDryRun = true;
+
+            Assert.That(p.BarText, Does.StartWith("Dry run"));
+        }
+
         // ------------------------------------------------------------- formatting
 
         [Test]

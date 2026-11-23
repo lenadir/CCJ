@@ -1,9 +1,10 @@
 # CCJ
 
-A small Windows desktop app that manages three scheduled Robocopy backup jobs: **Folder1**,
-**Folder2** and **Folder3**. It edits the jobs, regenerates `Backup_FolderN.bat` from a fixed
-template, creates or updates the matching Task Scheduler tasks, and shows status and logs in
-one window.
+A small Windows desktop app that manages scheduled Robocopy backup jobs. It starts with three
+(**Folder1**, **Folder2** and **Folder3**), and you can add as many more as you need. It edits
+the jobs, regenerates `Backup_<job>.bat` from a fixed template, creates or updates the matching
+Task Scheduler tasks, shows status, progress and logs in one window, and can pause, resume or
+stop a copy while it runs.
 
 C# WinForms, .NET Framework 4.8, single `CCJ.exe`, no installer.
 
@@ -16,8 +17,9 @@ These are enforced in code, not just by convention:
 | Guarantee | How it is enforced |
 |---|---|
 | Nothing is ever deleted on the destination | `ScriptGenerator.GuardAgainstDeletingOptions` throws if a rendered script contains `/MIR` or `/PURGE` outside a comment. It runs on every render **and** again inside `WriteScript`, so a bad script cannot reach the disk. Covered by unit tests. |
-| No real copy without confirmation | `Run now` always opens `ConfirmRunForm`, which shows the source, the destination and the file count. The confirm button stays disabled until the count is in. |
-| Scripts are shown before they are written | `Save` opens a full preview of all three scripts. Nothing is written if you cancel. |
+| No real copy without confirmation | `Start copy` always opens `ConfirmRunForm`, which shows the source, the destination and the file count. The confirm button stays disabled until the count is in. |
+| Scripts are shown before they are written | `Save` opens a full preview of every script it is about to write. Nothing is written if you cancel. |
+| Stopping a copy deletes nothing | `Stop` ends the task and the robocopy process. Files already copied stay on the destination; robocopy is never asked to delete anything, and the confirmation says so before you agree. |
 | The dry run cannot copy | It adds `/L` to robocopy, drops the destination-folder creation, and redirects logs to `%TEMP%\CCJ_DryRun`. |
 | The progress bar cannot change anything | It only reads log files. Its total comes from a separate robocopy pass that always runs with `/L` (list only) and is checked against `/MIR` and `/PURGE` like every other command. Tests assert that neither the source nor the destination is touched, and that the destination folder is not even created. |
 | Your password is never stored | It is a method parameter passed straight to the Task Scheduler API. It is never written to `jobs.json`, to `app.log`, or to any other file, and the password box is cleared when the dialog closes. A unit test asserts no `password` field appears in the saved JSON. |
@@ -75,7 +77,7 @@ keeps `packages\` byte-exact (no line-ending conversion).
 run-tests.cmd
 ```
 
-Builds, runs the 276 unit tests, then runs the exe's own self test. Every test works in a
+Builds, runs the 315 unit tests, then runs the exe's own self test. Every test works in a
 folder under `%TEMP%`; no network path is ever touched. The tests also run with
 `CCJ_DATA_DIR` pointed at a throwaway folder, so they can never read or change your real
 `jobs.json` or `app.log`. The tests are a self-running NUnitLite
@@ -109,30 +111,48 @@ banner appears with a **Restart as administrator** button.
 ### The three tabs
 
 - **Dashboard** — one row per job: name, source, destination, enabled, whether the task exists,
-  next run, last run, last result (`0x0 = success`) and the last `master.log` line for that job.
-- **Jobs** — the editable settings, plus the script and log folder.
+  progress, next run, last run, last result (`0x0 = success`) and the last `master.log` line for
+  that job.
+- **Jobs** — the editable settings, one box per job, plus the script and log folder, **Add
+  another job**, a **Remove job** button per job, and the **Enabled** switch.
 - **Logs** — the last 200 lines of `master.log`, filterable by job.
 
 ### Buttons
 
 | Button | What it does |
 |---|---|
-| **Save** | Validates, previews all three scripts, writes them, saves `jobs.json`, then offers to create or update the three tasks. |
-| **Preview** | Shows the script for the selected job (or all three) without writing anything. |
-| **Run now** | Starts the selected job's task after a confirmation showing source, destination and file count. |
+| **Save** | Validates, previews every script it will write, writes them, saves `jobs.json`, then offers to create or update the tasks. |
+| **Start copy** | Starts the selected job's task after a confirmation showing source, destination and file count. |
+| **Pause / Resume** | Suspends the running robocopy of the selected job, and lets it carry on again. The button is only available while a copy is actually under way. |
+| **Stop** | Ends the run: the scheduled task first, then robocopy. Nothing is deleted. |
 | **Test (dry run)** | Generates a `/L` copy of the script in `%TEMP%\CCJ_DryRun`, runs it, and reports the result. Copies nothing. |
-| **Enable/Disable** | Flips the selected job and matches the task's enabled state. |
-| **Open logs** | Opens the Logs folder in Explorer. |
 | **Check connectivity** | Each path must exist and each host must answer on TCP 445, with a 3 second timeout. |
 | **Check credentials** | Reports whether Credential Manager holds an entry per host, and can open Credential Manager. Passwords are never read or shown. |
+| **Dark mode** | Switches the window between light and dark. Remembered in `%APPDATA%\CCJ\ui.json`. |
+
+Enabling and disabling a job is **not** a button: it is the **Enabled** box on the Jobs tab. It
+takes effect the moment you tick it — `jobs.json` is written and the scheduled task is switched
+at the same time — so the Jobs tab and the Dashboard can never disagree.
+
+### Adding, removing and skipping jobs
+
+- **Add another job** adds an empty job with the next free key (`Folder4`, `Folder5`, …), which
+  is also the name of its script, `Backup_Folder4.bat`.
+- A job you have not filled in is **skipped**, not refused: it is left out of `jobs.json`, no
+  script is written for it and no task is made. One filled-in job is enough to save and to copy.
+  A job counts as filled in once it has a source or a NAS folder name.
+- **Remove job** deletes that job's scheduled task and takes it out of the settings. Its script
+  file and its logs are left on disk, and nothing already copied is touched.
 
 ### Settings
 
-Stored in `%APPDATA%\CCJ\jobs.json`. Errors go to `%APPDATA%\CCJ\app.log`.
+Stored in `%APPDATA%\CCJ\jobs.json`. Errors go to `%APPDATA%\CCJ\app.log`. Dark mode is kept
+separately in `%APPDATA%\CCJ\ui.json`, so the look of the window never depends on the backup
+settings being valid.
 
 **Script and log folder** (the "Vox root") defaults to the `Vox` folder beside the exe and is
-editable on the Jobs tab. It holds `Backup_Folder1.bat`, `Backup_Folder2.bat`,
-`Backup_Folder3.bat` and the `Logs` folder. To use the classic layout, set it to `C:\Vox`.
+editable on the Jobs tab. It holds one `Backup_<job>.bat` per job and the `Logs` folder. To use
+the classic layout, set it to `C:\Vox`.
 
 ### Validation rules
 
@@ -140,7 +160,11 @@ editable on the Jobs tab. It holds `Backup_Folder1.bat`, `Backup_Folder2.bat`,
   Spaces in a share name are fine (`\\192.168.100.100\3G eng`).
 - The NAS folder name must be a single name with none of `\ / : * ? " < > |`, not a reserved
   device name (`CON`, `NUL`, `COM1`…), and not padded with spaces or dots.
-- The first run date must be a **Sunday** at **00:00**. The **Next Sunday** button fills it in.
+- The first run date must be a **Sunday**; the time of day is yours to choose, and the weekly
+  trigger repeats at that time.
+- Two jobs may not share a key (they would write the same script) or a job name (they would
+  fight over one scheduled task).
+- At least one job must be filled in.
 
 ---
 
@@ -148,8 +172,8 @@ editable on the Jobs tab. It holds `Backup_Folder1.bat`, `Backup_Folder2.bat`,
 
 Each job becomes a task named `CCJ Backup <JobName>`, configured as:
 
-- **Trigger:** weekly, `WeeksInterval = 3`, Sunday, starting on the chosen date at 00:00.
-- **Action:** `<Vox root>\Backup_FolderN.bat`, starting in `<Vox root>`.
+- **Trigger:** weekly, `WeeksInterval = 3`, Sunday, starting on the chosen date **and time**.
+- **Action:** `<Vox root>\Backup_<job>.bat`, starting in `<Vox root>`.
 - **Security:** *Run whether user is logged on or not* (`TaskLogonType.Password`).
 - **Run after a missed start** (`StartWhenAvailable`) is on.
 - **Do not start a new instance if one is running** (`MultipleInstances = IgnoreNew`) is on.
@@ -186,7 +210,7 @@ the Windows password later, press **Save** again to re-register the tasks with t
 | `0xA` | Environment is incorrect. | Usually a bad "Start in" folder. Press **Save** to reset it to the Vox root. |
 | `0x41300` | Task is ready, never run. | Normal before the first Sunday. |
 | `0x41301` | Task is currently running. | Wait; the retry loop can last up to 6 × 15 minutes. |
-| `0x41302` | Task is disabled. | Use **Enable/Disable**. |
+| `0x41302` | Task is disabled. | Tick **Enabled** for that job on the Jobs tab. |
 | `0x41303` | Task has never run. | Normal for a new task. |
 | `0x41304` | No more runs scheduled. | The start date is in the past with no future occurrence. Set a new Sunday and **Save**. |
 | `0x41306` | Terminated by the user. | Someone pressed End in Task Scheduler. |
@@ -223,6 +247,10 @@ on). **8 or higher means at least one file failed**, which is what the script te
 | The task runs but nothing is copied | Open the per-run log named `<Folder>_<timestamp>.log` in the Logs folder. It names the file that failed. |
 | The task works when logged on and fails when logged off | Credentials are stored for your interactive account only, or a mapped drive letter is in use. Store them for the task account and use UNC paths. |
 | Scripts are not regenerated | They are only written by **Save**, and only after you confirm the preview. |
+| **Pause** says it cannot open the process | The task is running as another account. Use **Restart as administrator** and pause again. |
+| **Pause** says there is nothing to pause | The script is between attempts, or still checking the shares, so no robocopy exists yet. Wait for the bar to show "copying", or use **Stop** to end the whole run. |
+| A paused copy ends up failing | A pause of many minutes can drop the SMB session to the server. The script notices the error and retries by itself (6 attempts, 15 minutes apart), so nothing is lost, but keep pauses short. |
+| A job disappeared after **Remove job** | That is what it does. Its script file is still in the Vox root and can be deleted by hand; its logs are untouched. |
 
 ---
 
@@ -237,14 +265,16 @@ Vox\                          runtime root: Backup_FolderN.bat and Logs\master.l
 CCJ\
   Program.cs                  entry point, --selftest, global error handling
   Models\                     JobConfig, JobsFile, JobStatus, CheckResult, AppPaths,
-                              CopyProgress
+                              CopyProgress, UiSettings
   Services\                   ScriptGenerator, TaskSchedulerService, ConnectivityChecker,
                               CredentialChecker, LogReader, JobRepository, Validation,
                               AppLog, Elevation, SelfTest
                               progress: ProgressService, CopyProgressMonitor,
                               RobocopyPlanner, RobocopyLogParser, IncrementalLineReader
+                              control: CopyControl (pause, resume, stop)
   Forms\                      MainForm, JobEditorControl, PreviewForm, ConfirmRunForm,
-                              PasswordForm, TextReportForm, DataGridViewProgressColumn
+                              PasswordForm, TextReportForm, DataGridViewProgressColumn,
+                              Theme (light and dark colours)
   Resources\BackupTemplate.bat.txt    the embedded script template
 CCJ.Tests\                    NUnit tests, run by NUnitLite
 ```
@@ -294,6 +324,44 @@ for running tasks every ~8 seconds, asking Task Scheduler for the state and star
 Known limits: two jobs that share one NAS folder name write indistinguishable log lines, so
 their progress can be mixed up; and the speed and time left are estimates that count only
 finished files.
+
+### Pause, resume and stop
+
+robocopy has no pause of its own and the script is not changed to add one, so a pause is the
+operating system's: every thread of that run's robocopy process is suspended, and resumed
+later (`NtSuspendProcess` / `NtResumeProcess` on a handle opened with `PROCESS_SUSPEND_RESUME`).
+robocopy itself notices nothing.
+
+Finding the right process matters more than suspending it. `CopyControl` asks WMI for every
+`robocopy.exe` with its command line, and keeps the one whose `/LOG:` is **this run's log
+file** — a path that contains the job's folder name and the second the run started, so it is
+unique to one run of one job. Before the log is known, the logs folder plus the folder name is
+used instead, which is still enough to tell a dry run (logging under `%TEMP%`) from the real run
+of the same job.
+
+**Stop** ends the scheduled task first and robocopy second. The order matters: killing only
+robocopy would leave the script in its retry loop, and it would start the copy again 15 minutes
+later. Files already copied are left in place; the file that was in flight is part written and
+is copied again on the next run, because robocopy compares size and timestamp. The run is then
+reported as *stopped*, never as a success.
+
+Two things worth knowing:
+
+- Pausing needs the right to open that process. When the task runs as another account, CCJ has
+  to be elevated; it says so rather than failing silently.
+- A long pause can drop the SMB session to the server. That shows up as a robocopy error, the
+  script retries on its own, and nothing is lost — but a pause is meant to be short.
+
+### Dark mode
+
+WinForms has no dark mode, so `Forms\Theme.cs` colours the controls itself. Each control says
+what it is through its `Tag` (`hint`, `error`, `surface`, `banner`, `readonly`) and the rest
+follows from its type, so a new control only has to be added to a form. The tab headers are
+owner drawn, because Windows will not colour them.
+
+Two things stay light on purpose: the progress bars, whose light track is what keeps one colour
+of text readable both on the track and on the pastel fill, and the drop-down calendars, which
+Windows draws itself.
 
 ### The script template
 

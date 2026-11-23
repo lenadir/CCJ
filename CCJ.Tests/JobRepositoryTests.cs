@@ -131,7 +131,7 @@ namespace CCJ.Tests
         }
 
         [Test]
-        public void A_file_missing_a_job_is_repaired_on_load()
+        public void A_file_with_one_job_loads_exactly_that_job()
         {
             File.WriteAllText(_path,
                 "{\"Version\":1,\"VoxRoot\":\"" + _temp.Replace("\\", "\\\\") + "\"," +
@@ -142,11 +142,66 @@ namespace CCJ.Tests
 
             JobsFile file = new JobRepository(_path).Load();
 
-            Assert.That(file.Jobs.Count, Is.EqualTo(3), "the three fixed jobs must always be present");
+            Assert.That(file.Jobs.Count, Is.EqualTo(1),
+                "how many jobs there are is the user's choice, not the program's");
+            Assert.That(file.Jobs[0].Key, Is.EqualTo("Folder2"));
+            Assert.That(file.Jobs[0].JobName, Is.EqualTo("Only one"));
+            Assert.That(file.Jobs[0].Enabled, Is.True);
+        }
+
+        [Test]
+        public void Five_saved_jobs_come_back_as_five()
+        {
+            JobRepository repository = new JobRepository(_path);
+            JobsFile saved = GoodFile();
+
+            for (int i = 0; i < 2; i++)
+            {
+                JobConfig added = saved.AddJob();
+                added.SourcePath = @"\\host\share";
+                added.NasRoot = @"\\nas\share";
+                added.NasFolder = "Extra" + i;
+            }
+
+            repository.Save(saved);
+            JobsFile loaded = repository.Load();
+
+            Assert.That(loaded.Jobs.Count, Is.EqualTo(5));
+            Assert.That(loaded.Jobs[3].Key, Is.EqualTo("Folder4"));
+            Assert.That(loaded.Jobs[4].NasFolder, Is.EqualTo("Extra1"));
+        }
+
+        [Test]
+        public void A_job_saved_with_a_time_of_day_keeps_it()
+        {
+            JobRepository repository = new JobRepository(_path);
+            JobsFile saved = GoodFile();
+            saved.Jobs[0].FirstRunDate = new DateTime(2026, 11, 22, 2, 15, 0);
+
+            repository.Save(saved);
+
+            Assert.That(repository.Load().Jobs[0].FirstRunDate,
+                Is.EqualTo(new DateTime(2026, 11, 22, 2, 15, 0)));
+        }
+
+        [Test]
+        public void A_job_with_no_key_is_given_one_on_load()
+        {
+            File.WriteAllText(_path,
+                "{\"Version\":1,\"VoxRoot\":\"" + _temp.Replace("\\", "\\\\") + "\"," +
+                "\"Jobs\":[{\"JobName\":\"No key\",\"SourcePath\":\"\\\\\\\\h\\\\s\"," +
+                "\"NasRoot\":\"\\\\\\\\h\\\\s\",\"NasFolder\":\"F\"}," +
+                "{\"Key\":\"Folder1\",\"JobName\":\"Dup\",\"SourcePath\":\"\\\\\\\\h\\\\s\"," +
+                "\"NasRoot\":\"\\\\\\\\h\\\\s\",\"NasFolder\":\"G\"}]}",
+                Encoding.UTF8);
+
+            JobsFile file = new JobRepository(_path).Load();
+
+            Assert.That(file.Jobs.Count, Is.EqualTo(2));
             Assert.That(file.Jobs[0].Key, Is.EqualTo("Folder1"));
-            Assert.That(file.Jobs[1].JobName, Is.EqualTo("Only one"), "the stored job must survive");
-            Assert.That(file.Jobs[1].Enabled, Is.True);
-            Assert.That(file.Jobs[2].Key, Is.EqualTo("Folder3"));
+            Assert.That(file.Jobs[1].Key, Is.EqualTo("Folder2"),
+                "the duplicate key is moved on, so the two jobs cannot share a script");
+            Assert.That(file.Jobs[1].JobName, Is.EqualTo("Dup"));
         }
 
         [Test]

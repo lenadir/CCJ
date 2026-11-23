@@ -39,6 +39,7 @@ namespace CCJ.Forms
                 case CopyPhase.Finished: return Color.FromArgb(150, 212, 164);
                 case CopyPhase.Failed: return Color.FromArgb(238, 150, 150);
                 case CopyPhase.Stopped: return Color.FromArgb(244, 196, 130);
+                case CopyPhase.Paused: return Color.FromArgb(176, 186, 202);
                 default: return Color.FromArgb(143, 185, 235);
             }
         }
@@ -70,7 +71,8 @@ namespace CCJ.Forms
 
             if (progress == null)
             {
-                TextRenderer.DrawText(graphics, "-", font, slot, Color.Gray,
+                // The cell's own colour, so the dash is visible in dark mode too.
+                TextRenderer.DrawText(graphics, "-", font, slot, cellStyle.ForeColor,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
                 return;
             }
@@ -83,7 +85,7 @@ namespace CCJ.Forms
                 graphics.FillRectangle(trackBrush, slot);
             }
 
-            bool unknownTotal = progress.Phase == CopyPhase.Copying && !progress.Fraction.HasValue;
+            bool unknownTotal = progress.IsRunning && !progress.Fraction.HasValue;
             Rectangle fill = Rectangle.Empty;
 
             if (progress.Phase == CopyPhase.Finished || progress.Phase == CopyPhase.Failed ||
@@ -91,7 +93,7 @@ namespace CCJ.Forms
             {
                 fill = inner;
             }
-            else if (progress.Phase == CopyPhase.Copying && progress.Fraction.HasValue && progress.Fraction.Value > 0)
+            else if (progress.IsRunning && progress.Fraction.HasValue && progress.Fraction.Value > 0)
             {
                 int width = (int)Math.Round(inner.Width * progress.Fraction.Value);
                 fill = new Rectangle(inner.X, inner.Y, Math.Max(2, Math.Min(width, inner.Width)), inner.Height);

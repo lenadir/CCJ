@@ -49,10 +49,12 @@
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="CopyControlTests.cs" />
     <Compile Include="CopyProgressModelTests.cs" />
     <Compile Include="CopyProgressMonitorTests.cs" />
     <Compile Include="IncrementalLineReaderTests.cs" />
     <Compile Include="JobRepositoryTests.cs" />
+    <Compile Include="JobsFileTests.cs" />
     <Compile Include="LogReaderTests.cs" />
     <Compile Include="ProgressEndToEndTests.cs" />
     <Compile Include="ProgressServiceTests.cs" />

@@ -30,14 +30,31 @@ namespace CCJ.Forms
             "one that started while CCJ was closed, shows up here by itself.";
 
         private readonly List<JobEditorControl> _editors = new List<JobEditorControl>();
+        private readonly UiSettings _ui;
         private JobsFile _file;
         private bool _loading;
 
+        /// <summary>The cmd.exe of a dry run CCJ started itself, so Stop can end it.</summary>
+        private Process _dryRunProcess;
+
         public MainForm()
         {
+            _ui = UiSettings.Load();
+            Theme.Use(_ui.DarkMode);
+
             InitializeComponent();
-            BuildJobEditors();
             BuildGridColumns();
+
+            // Ticking the box here must not look like the user switching it.
+            _loading = true;
+            try
+            {
+                this.chkDarkMode.Checked = _ui.DarkMode;
+            }
+            finally
+            {
+                _loading = false;
+            }
 
             // Follows running backups on a timer of its own. The form only receives the results.
             _progress = new ProgressService(
@@ -46,6 +63,7 @@ namespace CCJ.Forms
             _progress.Changed += new EventHandler<ProgressEventArgs>(OnProgressChanged);
 
             this.lblProgressDetail.Text = NoProgressText;
+            ApplyTheme();
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
@@ -75,7 +93,7 @@ namespace CCJ.Forms
             BindFile();
             RefreshDashboard();
             RefreshLogView();
-            SetStatus("Loaded " + _file.Jobs.Count + " jobs from " + _repository.Path);
+            SetStatus("Loaded " + _file.Jobs.Count + " job(s) from " + _repository.Path);
 
             // Every 1.5 seconds; it also looks for a task that is already running.
             _progress.Start(1500);
@@ -83,18 +101,44 @@ namespace CCJ.Forms
 
         // ---------------------------------------------------------------- setup
 
-        private void BuildJobEditors()
+        /// <summary>
+        /// One editor per job, stacked top down inside a scrolling panel. Rebuilt whenever the
+        /// number of jobs changes, because the user can add and remove jobs.
+        /// </summary>
+        private void RebuildJobEditors()
         {
-            // Stacked top down inside a scrolling panel, so three fixed jobs always fit.
-            for (int i = 2; i >= 0; i--)
+            this.pnlJobEditors.SuspendLayout();
+            try
             {
-                JobEditorControl editor = new JobEditorControl();
-                editor.Dock = DockStyle.Top;
-                editor.Height = 212;
-                editor.ValueChanged += new EventHandler(OnEditorValueChanged);
-                this.pnlJobEditors.Controls.Add(editor);
-                _editors.Insert(0, editor);
+                foreach (JobEditorControl old in _editors)
+                {
+                    this.pnlJobEditors.Controls.Remove(old);
+                    old.Dispose();
+                }
+                _editors.Clear();
+
+                // Docked to the top, so the one added last ends up highest: add them backwards and
+                // the first job sits at the top of the panel.
+                for (int i = _file.Jobs.Count - 1; i >= 0; i--)
+                {
+                    JobEditorControl editor = new JobEditorControl();
+                    editor.Dock = DockStyle.Top;
+                    editor.Height = 212;
+                    editor.Bind(_file.Jobs[i]);
+                    editor.ValueChanged += new EventHandler(OnEditorValueChanged);
+                    editor.EnabledToggled += new EventHandler(OnEditorEnabledToggled);
+                    editor.RemoveRequested += new EventHandler(OnEditorRemoveRequested);
+
+                    this.pnlJobEditors.Controls.Add(editor);
+                    _editors.Insert(0, editor);
+                }
             }
+            finally
+            {
+                this.pnlJobEditors.ResumeLayout(true);
+            }
+
+            Theme.Apply(this.pnlJobEditors);
         }
 
         private void BuildGridColumns()
@@ -138,8 +182,7 @@ namespace CCJ.Forms
             {
                 this.txtVoxRoot.Text = _file.VoxRoot;
 
-                for (int i = 0; i < _editors.Count && i < _file.Jobs.Count; i++)
-                    _editors[i].Bind(_file.Jobs[i]);
+                RebuildJobEditors();
 
                 this.cmbLogFilter.Items.Clear();
                 this.cmbLogFilter.Items.Add("All jobs");
@@ -160,10 +203,11 @@ namespace CCJ.Forms
             collected.Version = _file.Version;
             collected.VoxRoot = this.txtVoxRoot.Text.Trim();
 
-            for (int i = 0; i < _editors.Count; i++)
+            foreach (JobEditorControl editor in _editors)
             {
-                JobConfig job = i < _file.Jobs.Count ? _file.Jobs[i].Clone() : new JobConfig();
-                _editors[i].ApplyTo(job);
+                JobConfig stored = _file.FindByKey(editor.JobKey);
+                JobConfig job = stored != null ? stored.Clone() : new JobConfig();
+                editor.ApplyTo(job);
                 collected.Jobs.Add(job);
             }
             return collected;
@@ -173,6 +217,179 @@ namespace CCJ.Forms
         {
             if (_loading) return;
             SetStatus("Unsaved changes. Use Save to write the scripts and update the tasks.");
+        }
+
+        // ---------------------------------------------------------------- adding and removing jobs
+
+        private void btnAddJob_Click(object sender, EventArgs e)
+        {
+            // Everything typed so far is kept, so adding a job never loses an edit in progress.
+            JobsFile collected = CollectFromUi();
+            collected.AddJob();
+
+            _file = collected;
+            BindFile();
+
+            this.tabs.SelectedTab = this.tabJobs;
+            if (_editors.Count > 0)
+                _editors[_editors.Count - 1].Focus();
+
+            RefreshDashboard();
+            SetStatus("Added " + _file.Jobs[_file.Jobs.Count - 1].Key +
+                      ". Fill in its source, NAS root and folder, then use Save.");
+        }
+
+        private void OnEditorRemoveRequested(object sender, EventArgs e)
+        {
+            JobEditorControl editor = sender as JobEditorControl;
+            if (editor == null) return;
+
+            JobConfig shown = editor.ToJob();
+            bool blank = shown.IsBlank;
+
+            if (!blank)
+            {
+                DialogResult answer = MessageBox.Show(this,
+                    "Remove the job \"" + shown.JobName + "\" (" + editor.JobKey + ") from CCJ?\r\n\r\n" +
+                    "Its scheduled task is deleted if it exists. The script file and every log stay " +
+                    "where they are, and nothing that has already been copied is touched.",
+                    "Remove job", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (answer != DialogResult.Yes) return;
+            }
+
+            if (_progress.IsActive(editor.JobKey))
+            {
+                MessageBox.Show(this,
+                    "\"" + shown.JobName + "\" is running at the moment. Stop it first, then remove it.",
+                    "Still running", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            JobsFile collected = CollectFromUi();
+            JobConfig toRemove = collected.FindByKey(editor.JobKey);
+            if (toRemove == null) return;
+
+            collected.Jobs.Remove(toRemove);
+
+            if (collected.ConfiguredJobs.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "That is the last job that has been filled in. CCJ needs at least one job, so " +
+                    "this one was kept. Change its paths instead, or add another job first.",
+                    "At least one job is needed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // The settings file is written straight away, so a removal survives closing the window.
+            if (!blank && !TrySave(collected, "the job was not removed"))
+                return;
+
+            string note = "";
+            if (!blank)
+            {
+                try
+                {
+                    note = _tasks.Delete(toRemove)
+                        ? " Its scheduled task was deleted."
+                        : " It had no scheduled task.";
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Error("Could not delete the task for " + toRemove.Key, ex);
+                    note = " Its scheduled task could not be deleted: " + ex.Message;
+                }
+            }
+
+            _file = blank ? collected : _repository.Load();
+            BindFile();
+            _progress.Untrack(toRemove.Key);
+            RefreshDashboard();
+            RefreshLogView();
+
+            SetStatus("Removed " + toRemove.Key + "." + note);
+        }
+
+        /// <summary>
+        /// Saves the blank jobs out and reports any problem as a validation message. Returns false
+        /// when nothing was written.
+        /// </summary>
+        private bool TrySave(JobsFile collected, string whatFailed)
+        {
+            try
+            {
+                _repository.Save(collected.WithoutBlankJobs());
+                return true;
+            }
+            catch (ValidationException ex)
+            {
+                ShowValidationErrors(ex.Errors);
+                SetStatus("Nothing was saved, so " + whatFailed + ".");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                ShowError("The settings could not be saved, so " + whatFailed + ".", ex);
+                return false;
+            }
+        }
+
+        // ---------------------------------------------------------------- enable / disable
+
+        /// <summary>
+        /// The Enabled box on the Jobs tab is the only switch for a job, and it acts at once: the
+        /// settings file and the scheduled task are both updated, and the Dashboard is refreshed,
+        /// so the two tabs always show the same thing.
+        /// </summary>
+        private void OnEditorEnabledToggled(object sender, EventArgs e)
+        {
+            JobEditorControl editor = sender as JobEditorControl;
+            if (editor == null || _loading) return;
+
+            JobConfig stored = _file.FindByKey(editor.JobKey);
+            bool wanted = editor.JobEnabled;
+
+            if (stored == null) return;
+
+            if (stored.IsBlank)
+            {
+                editor.SetEnabledQuietly(false);
+                MessageBox.Show(this,
+                    "Fill in the source, the NAS root and the folder name first, then use Save. " +
+                    "A job that has not been filled in cannot be enabled.",
+                    "Nothing to enable yet", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            bool previous = stored.Enabled;
+            stored.Enabled = wanted;
+
+            if (!TrySave(_file, "the job was left " + (previous ? "enabled" : "disabled")))
+            {
+                stored.Enabled = previous;
+                editor.SetEnabledQuietly(previous);
+                return;
+            }
+
+            string note;
+            try
+            {
+                note = _tasks.SetEnabled(stored, wanted)
+                    ? " The scheduled task was updated too."
+                    : " There is no scheduled task yet, so use Save to create it.";
+            }
+            catch (UnauthorizedAccessException)
+            {
+                note = " The scheduled task could not be changed: that needs administrator rights.";
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Could not switch the task for " + stored.Key, ex);
+                note = " The scheduled task could not be changed: " + ex.Message;
+            }
+
+            RefreshDashboard();
+            SetStatus(stored.Key + " is now " + (wanted ? "enabled" : "disabled") + "." + note);
         }
 
         // ---------------------------------------------------------------- dashboard
@@ -187,11 +404,12 @@ namespace CCJ.Forms
 
                 foreach (JobConfig job in shown.Jobs)
                 {
-                    JobStatus status = _tasks.GetStatus(job);
+                    JobStatus status = job.IsBlank ? new JobStatus() : _tasks.GetStatus(job);
                     string lastLine = "";
                     try
                     {
-                        lastLine = _logs.LastLineFor(shown.MasterLogPath, job.Key, job.NasFolder, job.JobName);
+                        if (!job.IsBlank)
+                            lastLine = _logs.LastLineFor(shown.MasterLogPath, job.Key, job.NasFolder, job.JobName);
                     }
                     catch (Exception ex)
                     {
@@ -202,10 +420,10 @@ namespace CCJ.Forms
 
                     int index = this.grid.Rows.Add(
                         job.Key,
-                        job.SourcePath,
-                        job.DestinationPath,
+                        job.IsBlank ? "(not filled in)" : job.SourcePath,
+                        job.IsBlank ? "" : job.DestinationPath,
                         job.Enabled ? "yes" : "no",
-                        status.TaskExists ? (status.TaskEnabled ? "enabled" : "disabled") : "missing",
+                        job.IsBlank ? "-" : (status.TaskExists ? (status.TaskEnabled ? "enabled" : "disabled") : "missing"),
                         progress,
                         status.NextRunText,
                         status.LastRunText,
@@ -216,20 +434,29 @@ namespace CCJ.Forms
                     row.Tag = job.Key;
                     if (progress != null) row.Cells["Progress"].ToolTipText = progress.Detail;
 
-                    if (!status.TaskExists)
-                        row.Cells["Task"].Style.ForeColor = Color.Firebrick;
+                    if (job.IsBlank)
+                    {
+                        row.Cells["Source"].Style.ForeColor = Theme.SubtleText;
+                    }
+                    else if (!status.TaskExists)
+                    {
+                        row.Cells["Task"].Style.ForeColor = Theme.ErrorText;
+                    }
                     else if (!status.TaskEnabled)
-                        row.Cells["Task"].Style.ForeColor = Color.DarkOrange;
+                    {
+                        row.Cells["Task"].Style.ForeColor = Theme.WarningText;
+                    }
 
                     if (status.LastTaskResult.HasValue && status.LastTaskResult.Value != 0 &&
                         status.LastTaskResult.Value != 0x41300 && status.LastTaskResult.Value != 0x41303)
                     {
-                        row.Cells["LastResult"].Style.ForeColor = Color.Firebrick;
+                        row.Cells["LastResult"].Style.ForeColor = Theme.ErrorText;
                     }
                 }
 
                 SelectRow(selectedKey);
                 UpdateProgressDetail();
+                UpdateRunButtons();
             }
             catch (Exception ex)
             {
@@ -259,14 +486,17 @@ namespace CCJ.Forms
             return Convert.ToString(this.grid.SelectedRows[0].Tag);
         }
 
+        /// <summary>The selected job, or null, without telling the user off.</summary>
+        private JobConfig SelectedJobQuietly()
+        {
+            string key = SelectedKeyQuietly();
+            return key == null ? null : _file.FindByKey(key);
+        }
+
         private JobConfig SelectedJob()
         {
-            if (this.grid.SelectedRows.Count > 0)
-            {
-                string key = Convert.ToString(this.grid.SelectedRows[0].Tag);
-                JobConfig job = _file.FindByKey(key);
-                if (job != null) return job;
-            }
+            JobConfig job = SelectedJobQuietly();
+            if (job != null) return job;
 
             if (this.grid.Rows.Count > 0)
             {
@@ -281,15 +511,27 @@ namespace CCJ.Forms
         private void btnSave_Click(object sender, EventArgs e)
         {
             JobsFile collected = CollectFromUi();
+            JobsFile toSave = collected.WithoutBlankJobs();
+            int skipped = collected.Jobs.Count - toSave.Jobs.Count;
 
-            List<string> errors = Validation.ValidateFile(collected);
+            if (toSave.Jobs.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "No job has been filled in yet, so there is nothing to write.\r\n\r\n" +
+                    "Fill in the source, the NAS root and the folder name of at least one job on " +
+                    "the Jobs tab. One job is enough; the others can stay empty.",
+                    "Nothing to save", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                SetStatus("Nothing was written: no job has been filled in.");
+                return;
+            }
+
+            List<string> errors = Validation.ValidateFile(toSave);
+            ShowPerEditorProblems(collected);
             if (errors.Count > 0)
             {
                 ShowValidationErrors(errors);
-                ShowPerEditorProblems(collected);
                 return;
             }
-            ShowPerEditorProblems(collected);
 
             // 1. Show every script before a single byte is written.
             StringBuilder preview = new StringBuilder();
@@ -298,10 +540,10 @@ namespace CCJ.Forms
 
             try
             {
-                foreach (JobConfig job in collected.Jobs)
+                foreach (JobConfig job in toSave.Jobs)
                 {
-                    string content = _generator.Render(job, collected.VoxRoot);
-                    string path = job.ScriptPath(collected.VoxRoot);
+                    string content = _generator.Render(job, toSave.VoxRoot);
+                    string path = job.ScriptPath(toSave.VoxRoot);
 
                     paths.Add(path);
                     contents.Add(content);
@@ -319,12 +561,16 @@ namespace CCJ.Forms
                 return;
             }
 
-            string caption = "These " + paths.Count + " scripts will be written to " +
-                             collected.VoxRoot + ". Nothing has been written yet.";
+            string caption = "These " + paths.Count + " script(s) will be written to " +
+                             toSave.VoxRoot + ". Nothing has been written yet." +
+                             (skipped > 0
+                                 ? "   " + skipped + " empty job(s) are skipped."
+                                 : "");
 
             using (PreviewForm dialog = new PreviewForm(
                 "Preview the generated scripts", caption, preview.ToString(), "Write scripts and save"))
             {
+                Theme.Apply(dialog);
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
                     SetStatus("Save cancelled. Nothing was written.");
@@ -338,7 +584,7 @@ namespace CCJ.Forms
                 for (int i = 0; i < paths.Count; i++)
                     _generator.WriteScript(paths[i], contents[i]);
 
-                _repository.Save(collected);
+                _repository.Save(toSave);
                 _file = _repository.Load();
                 BindFile();
             }
@@ -353,7 +599,8 @@ namespace CCJ.Forms
                 return;
             }
 
-            SetStatus("Wrote " + paths.Count + " scripts and saved " + _repository.Path);
+            SetStatus("Wrote " + paths.Count + " script(s) and saved " + _repository.Path +
+                      (skipped > 0 ? ". " + skipped + " empty job(s) were skipped." : ""));
 
             // 3. Offer to create or update the scheduled tasks, which needs the password.
             UpdateTasksAfterSave();
@@ -364,10 +611,12 @@ namespace CCJ.Forms
 
         private void UpdateTasksAfterSave()
         {
+            int count = _file.Jobs.Count;
+
             DialogResult answer = MessageBox.Show(this,
-                "Scripts saved.\r\n\r\nCreate or update the three scheduled tasks now?\r\n\r\n" +
-                "Each task runs every 3 weeks on Sunday at 00:00 whether you are logged on or not, " +
-                "so Windows needs your password once to store the task.",
+                "Scripts saved.\r\n\r\nCreate or update the " + count + " scheduled task(s) now?\r\n\r\n" +
+                "Each task runs every 3 weeks on its Sunday, at the time set for that job, whether " +
+                "you are logged on or not, so Windows needs your password once to store the task.",
                 "Update scheduled tasks?", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
             if (answer != DialogResult.Yes)
@@ -391,6 +640,7 @@ namespace CCJ.Forms
             using (PasswordForm dialog = new PasswordForm(Elevation.CurrentUserName(),
                 "Windows needs the password of the account the backup tasks will run as."))
             {
+                Theme.Apply(dialog);
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
                     SetStatus("Scripts saved. Scheduled tasks were not changed.");
@@ -438,7 +688,7 @@ namespace CCJ.Forms
 
             if (failures.Count == 0)
             {
-                SetStatus("Saved, and " + done + " scheduled tasks were created or updated.");
+                SetStatus("Saved, and " + done + " scheduled task(s) were created or updated.");
             }
             else
             {
@@ -458,47 +708,13 @@ namespace CCJ.Forms
 
         private void ShowPerEditorProblems(JobsFile collected)
         {
-            for (int i = 0; i < _editors.Count && i < collected.Jobs.Count; i++)
-                _editors[i].ShowProblems(Validation.ValidateJob(collected.Jobs[i]));
-        }
-
-        // ---------------------------------------------------------------- preview
-
-        private void btnPreview_Click(object sender, EventArgs e)
-        {
-            JobsFile collected = CollectFromUi();
-            JobConfig job = SelectedJob();
-
-            List<JobConfig> toShow = new List<JobConfig>();
-            if (job == null)
-                toShow.AddRange(collected.Jobs);
-            else
-                toShow.Add(collected.FindByKey(job.Key));
-
-            StringBuilder preview = new StringBuilder();
-            try
+            foreach (JobEditorControl editor in _editors)
             {
-                foreach (JobConfig one in toShow)
-                {
-                    preview.AppendLine("==================================================================");
-                    preview.AppendLine(" " + one.ScriptPath(collected.VoxRoot));
-                    preview.AppendLine("==================================================================");
-                    preview.AppendLine(_generator.Render(one, collected.VoxRoot)
-                        .Replace("\r\n", Environment.NewLine));
-                    preview.AppendLine();
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowError("The script could not be generated.", ex);
-                return;
-            }
+                JobConfig job = collected.FindByKey(editor.JobKey);
+                if (job == null) continue;
 
-            using (PreviewForm dialog = new PreviewForm("Script preview",
-                "Read only preview. Nothing is written until you use Save.",
-                preview.ToString(), "Close"))
-            {
-                dialog.ShowDialog(this);
+                // An empty job is skipped, not broken, so it is not marked with problems.
+                editor.ShowProblems(job.IsBlank ? null : Validation.ValidateJob(job));
             }
         }
 
@@ -533,6 +749,7 @@ namespace CCJ.Forms
             }
 
             UpdateProgressDetail();
+            UpdateRunButtons();
 
             if (!progress.IsActive)
             {
@@ -566,17 +783,47 @@ namespace CCJ.Forms
             this.lblProgressDetail.Text = progress != null ? progress.Detail : NoProgressText;
         }
 
+        /// <summary>
+        /// Start, Pause/Resume and Stop follow the selected job: only what can actually be done
+        /// right now is available.
+        /// </summary>
+        private void UpdateRunButtons()
+        {
+            JobConfig job = SelectedJobQuietly();
+            CopyProgress progress = job == null ? null : _progress.Latest(job.Key);
+
+            bool active = progress != null && progress.IsActive;
+            bool running = progress != null && progress.IsRunning;
+            bool paused = progress != null && progress.Phase == CopyPhase.Paused;
+
+            this.btnRunNow.Enabled = job != null && !job.IsBlank && !active;
+            this.btnDryRun.Enabled = job != null && !job.IsBlank && !active;
+            this.btnPause.Enabled = running;
+            this.btnPause.Text = paused ? "Resume" : "Pause";
+            this.btnStop.Enabled = active;
+        }
+
         private void grid_SelectionChanged(object sender, EventArgs e)
         {
             UpdateProgressDetail();
+            UpdateRunButtons();
         }
 
-        // ---------------------------------------------------------------- run now
+        // ---------------------------------------------------------------- start a copy
 
         private void btnRunNow_Click(object sender, EventArgs e)
         {
             JobConfig job = SelectedJob();
             if (job == null) return;
+
+            if (job.IsBlank)
+            {
+                MessageBox.Show(this,
+                    "This job has not been filled in yet. Set its source, NAS root and folder name " +
+                    "on the Jobs tab, then use Save.",
+                    "Nothing to copy", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
             if (!_tasks.Exists(job))
             {
@@ -616,6 +863,7 @@ namespace CCJ.Forms
 
             using (ConfirmRunForm confirm = new ConfirmRunForm(job, false))
             {
+                Theme.Apply(confirm);
                 SetStatus("Counting files under " + job.SourcePath + "...");
 
                 // Starts now and fills the dialog in once the count is known, so the window opens
@@ -690,6 +938,141 @@ namespace CCJ.Forms
                 confirm.SetFileCount(count);
         }
 
+        // ---------------------------------------------------------------- pause, resume and stop
+
+        private void btnPause_Click(object sender, EventArgs e)
+        {
+            JobConfig job = SelectedJob();
+            if (job == null) return;
+
+            CopyProgress progress = _progress.Latest(job.Key);
+            if (progress == null || !progress.IsRunning)
+            {
+                MessageBox.Show(this,
+                    "Nothing is being copied for this job at the moment.\r\n\r\n" +
+                    "While the script is checking the shares or waiting before its next attempt " +
+                    "there is no copy to pause; Stop ends the run itself.",
+                    "Nothing to pause", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            bool pause = !_progress.IsPaused(job.Key);
+            List<RunningCopy> copies = FindCopies(job.Key);
+            ControlResult result = pause ? CopyControl.Pause(copies) : CopyControl.Resume(copies);
+
+            if (!result.Ok)
+            {
+                MessageBox.Show(this,
+                    "The copy could not be " + (pause ? "paused" : "resumed") + ".\r\n\r\n" +
+                    (result.Error == null ? "No reason was reported." : result.Error) +
+                    "\r\n\r\nMore detail is in " + AppPaths.AppLogPath,
+                    pause ? "Could not pause" : "Could not resume",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                SetStatus("The copy was not " + (pause ? "paused" : "resumed") + ".");
+                return;
+            }
+
+            _progress.SetPaused(job.Key, pause);
+            UpdateRunButtons();
+
+            SetStatus(pause
+                ? job.Key + " paused (" + result.Affected + " robocopy process(es) suspended). " +
+                  "A long pause can drop the connection to the server, which makes the script retry."
+                : job.Key + " resumed.");
+        }
+
+        private void btnStop_Click(object sender, EventArgs e)
+        {
+            JobConfig job = SelectedJob();
+            if (job == null) return;
+
+            CopyProgress progress = _progress.Latest(job.Key);
+            if (progress == null || !progress.IsActive)
+            {
+                MessageBox.Show(this, "This job is not running at the moment.", "Nothing to stop",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            bool dryRun = progress.IsDryRun;
+
+            DialogResult answer = MessageBox.Show(this,
+                "Stop the " + (dryRun ? "dry run" : "backup") + " of \"" + job.JobName + "\" now?\r\n\r\n" +
+                "Files that have already been copied stay on the destination; nothing is deleted. " +
+                "The file being copied right now is left part written and will be copied again on " +
+                "the next run, because robocopy compares sizes and timestamps.\r\n\r\n" +
+                "The run will be reported as stopped, not as a success.",
+                "Stop the copy?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+            if (answer != DialogResult.Yes) return;
+
+            StringBuilder outcome = new StringBuilder();
+
+            // The script, not just robocopy: stopping robocopy on its own would only make the
+            // script wait and try again.
+            if (dryRun)
+            {
+                outcome.Append(StopDryRunProcess());
+            }
+            else
+            {
+                try
+                {
+                    outcome.Append(_tasks.Stop(job)
+                        ? "The scheduled task was stopped."
+                        : "There was no running task to stop.");
+                }
+                catch (Exception ex)
+                {
+                    AppLog.Error("Could not stop the task for " + job.Key, ex);
+                    outcome.Append("The task could not be stopped: ").Append(ex.Message);
+                }
+            }
+
+            // robocopy can outlive the script that started it, so it is ended as well.
+            ControlResult killed = CopyControl.Terminate(FindCopies(job.Key));
+            if (killed.Affected > 0)
+                outcome.Append(" ").Append(killed.Affected).Append(" robocopy process(es) ended.");
+
+            _progress.SetPaused(job.Key, false);
+            _progress.DiscoverNow();
+
+            SetStatus(job.Key + " stopped. " + outcome.ToString());
+        }
+
+        /// <summary>Ends the dry run CCJ started itself, with its robocopy child.</summary>
+        private string StopDryRunProcess()
+        {
+            Process process = _dryRunProcess;
+            if (process == null) return "The dry run had already finished.";
+
+            try
+            {
+                if (process.HasExited) return "The dry run had already finished.";
+
+                process.Kill();
+                return "The dry run script was ended.";
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Could not end the dry run process.", ex);
+                return "The dry run could not be ended: " + ex.Message;
+            }
+        }
+
+        /// <summary>
+        /// The robocopy processes of one job's current run, found by the log file in their command
+        /// line so a dry run and a real run of the same job are never mixed up.
+        /// </summary>
+        private List<RunningCopy> FindCopies(string key)
+        {
+            string logPath = _progress.ActiveLogPath(key);
+            string logsDir = _progress.ActiveLogsDir(key);
+            string folder = _progress.ActiveFolder(key);
+            return CopyControl.Find(logPath, logsDir, folder);
+        }
+
         // ---------------------------------------------------------------- dry run
 
         private async void btnDryRun_Click(object sender, EventArgs e)
@@ -725,6 +1108,7 @@ namespace CCJ.Forms
                 "The script and its logs stay in " + dryRunDir + ".",
                 content.Replace("\r\n", Environment.NewLine), "Write and run the dry run"))
             {
+                Theme.Apply(dialog);
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
                     SetStatus("Dry run cancelled.");
@@ -734,6 +1118,7 @@ namespace CCJ.Forms
 
             using (ConfirmRunForm confirm = new ConfirmRunForm(job, true))
             {
+                Theme.Apply(confirm);
                 FillFileCount(confirm, job.SourcePath);
 
                 if (confirm.ShowDialog(this) != DialogResult.OK)
@@ -749,7 +1134,6 @@ namespace CCJ.Forms
                 _generator.WriteScript(scriptPath, content);
 
                 SetStatus("Dry run started: " + scriptPath);
-                SetBusy(true);
 
                 ProcessStartInfo info = new ProcessStartInfo("cmd.exe", "/c \"" + scriptPath + "\"");
                 info.UseShellExecute = false;
@@ -765,6 +1149,8 @@ namespace CCJ.Forms
 
                 Process started = Process.Start(info);
                 holder[0] = started;
+                _dryRunProcess = started;
+                UpdateRunButtons();
 
                 int exitCode = await Task.Run(new Func<int>(delegate
                 {
@@ -772,7 +1158,7 @@ namespace CCJ.Forms
                     return started.ExitCode;
                 })).ConfigureAwait(true);
 
-                SetBusy(false);
+                _dryRunProcess = null;
 
                 string master = Path.Combine(dryRunDir, "master.log");
                 string tail = "";
@@ -797,56 +1183,9 @@ namespace CCJ.Forms
             }
             catch (Exception ex)
             {
-                SetBusy(false);
+                _dryRunProcess = null;
                 _progress.Untrack(job.Key);
                 ShowError("The dry run could not be completed.", ex);
-            }
-        }
-
-        // ---------------------------------------------------------------- enable / disable
-
-        private void btnToggleEnabled_Click(object sender, EventArgs e)
-        {
-            JobConfig job = SelectedJob();
-            if (job == null) return;
-
-            bool wanted = !job.Enabled;
-
-            try
-            {
-                job.Enabled = wanted;
-                _repository.Save(_file);
-
-                bool taskChanged = _tasks.SetEnabled(job, wanted);
-
-                BindFile();
-                RefreshDashboard();
-
-                if (taskChanged)
-                {
-                    SetStatus(job.Key + " is now " + (wanted ? "enabled" : "disabled") +
-                              ", and the scheduled task was updated.");
-                }
-                else
-                {
-                    SetStatus(job.Key + " is now " + (wanted ? "enabled" : "disabled") +
-                              " in the settings. There is no scheduled task yet, so use Save to create it.");
-                }
-            }
-            catch (ValidationException ex)
-            {
-                job.Enabled = !wanted;
-                ShowValidationErrors(ex.Errors);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                job.Enabled = !wanted;
-                ShowError("Changing the task needs administrator rights. Use \"Restart as administrator\".", ex);
-            }
-            catch (Exception ex)
-            {
-                job.Enabled = !wanted;
-                ShowError("The job could not be switched.", ex);
             }
         }
 
@@ -854,7 +1193,13 @@ namespace CCJ.Forms
 
         private async void btnConnectivity_Click(object sender, EventArgs e)
         {
-            JobsFile collected = CollectFromUi();
+            JobsFile collected = CollectFromUi().WithoutBlankJobs();
+            if (collected.Jobs.Count == 0)
+            {
+                MessageBox.Show(this, "No job has been filled in yet, so there is nothing to check.",
+                    "Nothing to check", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
             SetBusy(true);
             SetStatus("Checking the source and the NAS, 3 second timeout per check...");
@@ -878,6 +1223,7 @@ namespace CCJ.Forms
                 "Each path must exist, and each host must answer on TCP 445 within 3 seconds.",
                 results, null, null))
             {
+                Theme.Apply(report);
                 report.ShowDialog(this);
             }
             SetStatus("Connectivity check finished.");
@@ -885,7 +1231,7 @@ namespace CCJ.Forms
 
         private void btnCredentials_Click(object sender, EventArgs e)
         {
-            JobsFile collected = CollectFromUi();
+            JobsFile collected = CollectFromUi().WithoutBlankJobs();
             List<CheckResult> results;
 
             try
@@ -903,6 +1249,7 @@ namespace CCJ.Forms
                 "CCJ never reads or shows a password.",
                 results, "Open Credential Manager", new EventHandler(OpenCredentialManager)))
             {
+                Theme.Apply(report);
                 report.ShowDialog(this);
             }
             SetStatus("Credential check finished.");
@@ -922,28 +1269,6 @@ namespace CCJ.Forms
 
         // ---------------------------------------------------------------- logs
 
-        private void btnOpenLogs_Click(object sender, EventArgs e)
-        {
-            string dir = CollectFromUi().LogsDir;
-            try
-            {
-                if (!Directory.Exists(dir))
-                {
-                    DialogResult answer = MessageBox.Show(this,
-                        dir + " does not exist yet.\r\n\r\nCreate it now?", "No log folder",
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                    if (answer != DialogResult.Yes) return;
-                    Directory.CreateDirectory(dir);
-                }
-                Process.Start("explorer.exe", "\"" + dir + "\"");
-            }
-            catch (Exception ex)
-            {
-                ShowError("The log folder could not be opened.", ex);
-            }
-        }
-
         private void RefreshLogView()
         {
             string master = CollectFromUi().MasterLogPath;
@@ -952,7 +1277,8 @@ namespace CCJ.Forms
             try
             {
                 string[] filter = new string[0];
-                if (this.cmbLogFilter.SelectedIndex > 0)
+                if (this.cmbLogFilter.SelectedIndex > 0 &&
+                    this.cmbLogFilter.SelectedIndex <= _file.Jobs.Count)
                 {
                     JobConfig job = _file.Jobs[this.cmbLogFilter.SelectedIndex - 1];
                     filter = new string[] { job.Key, job.NasFolder, job.JobName };
@@ -991,6 +1317,37 @@ namespace CCJ.Forms
             RefreshLogView();
         }
 
+        // ---------------------------------------------------------------- appearance
+
+        private void chkDarkMode_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+
+            _ui.DarkMode = this.chkDarkMode.Checked;
+            Theme.Use(_ui.DarkMode);
+            ApplyTheme();
+
+            if (!_ui.Save())
+                AppLog.Warn("The dark mode setting could not be written to " + AppPaths.UiSettingsPath);
+
+            // The grid holds colours of its own for missing tasks and failed runs.
+            if (_file != null) RefreshDashboard();
+
+            SetStatus(_ui.DarkMode ? "Dark mode on." : "Dark mode off.");
+        }
+
+        private void ApplyTheme()
+        {
+            Theme.Apply(this);
+            this.tabs.Invalidate();
+            this.grid.Invalidate();
+        }
+
+        private void tabs_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            Theme.DrawTab(this.tabs, e);
+        }
+
         // ---------------------------------------------------------------- misc
 
         private void btnRefresh_Click(object sender, EventArgs e)
@@ -1013,7 +1370,7 @@ namespace CCJ.Forms
         {
             using (FolderBrowserDialog dialog = new FolderBrowserDialog())
             {
-                dialog.Description = "Folder for the generated Backup_FolderN.bat files and the Logs folder.";
+                dialog.Description = "Folder for the generated Backup_<job>.bat files and the Logs folder.";
                 dialog.SelectedPath = Directory.Exists(this.txtVoxRoot.Text)
                     ? this.txtVoxRoot.Text
                     : AppPaths.ExeDir;

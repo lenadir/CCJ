@@ -49,6 +49,8 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
+    <!-- Win32_Process, which is how the robocopy process of a run is identified by its log file. -->
+    <Reference Include="System.Management" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
@@ -62,8 +64,10 @@
     <Compile Include="Models\JobConfig.cs" />
     <Compile Include="Models\JobStatus.cs" />
     <Compile Include="Models\JobsFile.cs" />
+    <Compile Include="Models\UiSettings.cs" />
     <Compile Include="Services\AppLog.cs" />
     <Compile Include="Services\ConnectivityChecker.cs" />
+    <Compile Include="Services\CopyControl.cs" />
     <Compile Include="Services\CopyProgressMonitor.cs" />
     <Compile Include="Services\CredentialChecker.cs" />
     <Compile Include="Services\Elevation.cs" />
@@ -92,6 +96,7 @@
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Forms\PasswordForm.cs" />
+    <Compile Include="Forms\Theme.cs" />
     <Compile Include="Forms\PreviewForm.cs" />
     <Compile Include="Forms\TextReportForm.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -9,11 +9,16 @@ namespace CCJ.Forms
     /// <summary>
     /// Editor for one job. It only moves values between the controls and a
     /// <see cref="JobConfig"/>; validation and saving belong to the services.
+    ///
+    /// The Enabled box is the one control here that acts at once rather than on Save: switching a
+    /// job on or off is reported straight away, so the Jobs tab and the Dashboard can never
+    /// disagree about which jobs are enabled.
     /// </summary>
     public partial class JobEditorControl : UserControl
     {
         private string _key = "Folder1";
         private readonly ToolTip _problemTip = new ToolTip();
+        private bool _binding;
 
         public JobEditorControl()
         {
@@ -24,15 +29,27 @@ namespace CCJ.Forms
             this.txtNasRoot.TextChanged += new EventHandler(OnAnyValueChanged);
             this.txtNasFolder.TextChanged += new EventHandler(OnAnyValueChanged);
             this.dtpFirstRun.ValueChanged += new EventHandler(OnAnyValueChanged);
-            this.chkEnabled.CheckedChanged += new EventHandler(OnAnyValueChanged);
+            this.dtpTime.ValueChanged += new EventHandler(OnAnyValueChanged);
+            this.chkEnabled.CheckedChanged += new EventHandler(OnEnabledChanged);
         }
 
         /// <summary>Raised whenever the user changes a field, so the form can refresh previews.</summary>
         public event EventHandler ValueChanged;
 
+        /// <summary>Raised when the user ticks or clears Enabled, which takes effect immediately.</summary>
+        public event EventHandler EnabledToggled;
+
+        /// <summary>Raised when the user asks for this job to be removed.</summary>
+        public event EventHandler RemoveRequested;
+
         public string JobKey
         {
             get { return _key; }
+        }
+
+        public bool JobEnabled
+        {
+            get { return this.chkEnabled.Checked; }
         }
 
         /// <summary>Copies a job into the controls.</summary>
@@ -40,19 +57,30 @@ namespace CCJ.Forms
         {
             if (job == null) return;
 
-            _key = job.Key;
-            this.grpJob.Text = job.Key;
-            this.txtJobName.Text = job.JobName;
-            this.txtSource.Text = job.SourcePath;
-            this.txtNasRoot.Text = job.NasRoot;
-            this.txtNasFolder.Text = job.NasFolder;
+            _binding = true;
+            try
+            {
+                _key = job.Key;
+                this.grpJob.Text = job.Key + (string.IsNullOrEmpty(job.JobName) ? "" : "  -  " + job.JobName);
+                this.txtJobName.Text = job.JobName;
+                this.txtSource.Text = job.SourcePath;
+                this.txtNasRoot.Text = job.NasRoot;
+                this.txtNasFolder.Text = job.NasFolder;
 
-            DateTime date = job.FirstRunDate;
-            if (date < this.dtpFirstRun.MinDate || date > this.dtpFirstRun.MaxDate)
-                date = JobsFile.NextSunday();
-            this.dtpFirstRun.Value = date.Date;
+                DateTime when = job.FirstRunDate;
+                if (when < this.dtpFirstRun.MinDate || when > this.dtpFirstRun.MaxDate)
+                    when = JobsFile.NextSunday();
 
-            this.chkEnabled.Checked = job.Enabled;
+                this.dtpFirstRun.Value = when.Date;
+                this.dtpTime.Value = DateTime.Today.Add(when.TimeOfDay);
+
+                this.chkEnabled.Checked = job.Enabled;
+            }
+            finally
+            {
+                _binding = false;
+            }
+
             RefreshDerivedLabels();
         }
 
@@ -66,7 +94,7 @@ namespace CCJ.Forms
             job.SourcePath = this.txtSource.Text.Trim();
             job.NasRoot = this.txtNasRoot.Text.Trim();
             job.NasFolder = this.txtNasFolder.Text.Trim();
-            job.FirstRunDate = this.dtpFirstRun.Value.Date;
+            job.FirstRunDate = this.dtpFirstRun.Value.Date.Add(this.dtpTime.Value.TimeOfDay);
             job.Enabled = this.chkEnabled.Checked;
         }
 
@@ -76,6 +104,23 @@ namespace CCJ.Forms
             JobConfig job = new JobConfig();
             ApplyTo(job);
             return job;
+        }
+
+        /// <summary>
+        /// Puts the tick back without raising <see cref="EnabledToggled"/> again, used when the
+        /// change could not be saved.
+        /// </summary>
+        public void SetEnabledQuietly(bool enabled)
+        {
+            _binding = true;
+            try
+            {
+                this.chkEnabled.Checked = enabled;
+            }
+            finally
+            {
+                _binding = false;
+            }
         }
 
         /// <summary>Shows validation messages under the fields, or clears them when the list is empty.</summary>
@@ -101,24 +146,44 @@ namespace CCJ.Forms
 
         private void OnAnyValueChanged(object sender, EventArgs e)
         {
+            if (_binding) return;
+
             RefreshDerivedLabels();
 
             if (ValueChanged != null)
                 ValueChanged(this, EventArgs.Empty);
         }
 
+        private void OnEnabledChanged(object sender, EventArgs e)
+        {
+            if (_binding) return;
+
+            if (EnabledToggled != null)
+                EnabledToggled(this, EventArgs.Empty);
+        }
+
+        private void btnRemove_Click(object sender, EventArgs e)
+        {
+            if (RemoveRequested != null)
+                RemoveRequested(this, EventArgs.Empty);
+        }
+
         private void RefreshDerivedLabels()
         {
             JobConfig current = ToJob();
+
+            this.grpJob.Text = _key + (current.JobName.Length == 0 ? "" : "  -  " + current.JobName);
             this.lblDestination.Text = current.DestinationPath.Length == 0 ? "-" : current.DestinationPath;
 
-            List<string> problems = Validation.ValidateJob(current);
-            ShowProblems(problems);
-        }
+            // An untouched job is not a problem to be fixed: it is simply skipped when saving.
+            if (current.IsBlank)
+            {
+                ShowProblems(null);
+                this.lblDestination.Text = "not set - this job is skipped until you fill it in";
+                return;
+            }
 
-        private void btnNextSunday_Click(object sender, EventArgs e)
-        {
-            this.dtpFirstRun.Value = JobsFile.NextSunday();
+            ShowProblems(Validation.ValidateJob(current));
         }
     }
 }

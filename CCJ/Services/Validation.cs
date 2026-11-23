@@ -107,12 +107,9 @@ namespace CCJ.Services
                            "these characters: \\ / : * ? \" < > |");
 
             if (!IsSunday(job.FirstRunDate))
-                errors.Add("First run date must be a Sunday. " +
-                           job.FirstRunDate.ToString("yyyy-MM-dd") + " is a " +
+                errors.Add("First run date must be a Sunday, because the task repeats weekly on " +
+                           "a Sunday. " + job.FirstRunDate.ToString("yyyy-MM-dd") + " is a " +
                            job.FirstRunDate.DayOfWeek + ".");
-
-            if (job.FirstRunDate.TimeOfDay != TimeSpan.Zero)
-                errors.Add("First run time must be 00:00.");
 
             return errors;
         }
@@ -143,10 +140,59 @@ namespace CCJ.Services
                 }
             }
 
+            if (file.Jobs.Count == 0)
+                errors.Add("There are no jobs. Add at least one job on the Jobs tab.");
+
             foreach (JobConfig job in file.Jobs)
             {
                 foreach (string error in ValidateJob(job))
                     errors.Add(job.Key + ": " + error);
+            }
+
+            errors.AddRange(FindDuplicates(file));
+            return errors;
+        }
+
+        /// <summary>
+        /// Two jobs that share a key would write the same .bat file, and two that share a job name
+        /// would fight over one scheduled task, so both are refused before anything is written.
+        /// </summary>
+        private static List<string> FindDuplicates(JobsFile file)
+        {
+            List<string> errors = new List<string>();
+            Dictionary<string, string> keys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (JobConfig job in file.Jobs)
+            {
+                string key = job.Key == null ? "" : job.Key.Trim();
+                if (key.Length == 0)
+                {
+                    errors.Add("A job has no key, so its script would have no name.");
+                }
+                else if (keys.ContainsKey(key))
+                {
+                    errors.Add(key + ": two jobs have the key " + key +
+                               ", so they would both write " + job.ScriptFileName + ".");
+                }
+                else
+                {
+                    keys.Add(key, key);
+                }
+
+                string name = job.JobName == null ? "" : job.JobName.Trim();
+                if (name.Length == 0) continue;
+
+                if (names.ContainsKey(name))
+                {
+                    errors.Add(key + ": the job name \"" + name + "\" is already used by " +
+                               names[name] + ". Each job needs its own name, because the name " +
+                               "becomes the scheduled task name.");
+                }
+                else
+                {
+                    names.Add(name, key);
+                }
             }
             return errors;
         }

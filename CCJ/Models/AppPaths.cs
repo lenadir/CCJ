@@ -33,6 +33,9 @@ namespace CCJ.Models
         /// <summary>%APPDATA%\CCJ\jobs.json</summary>
         public static string JobsFilePath { get { return Path.Combine(DataDir, "jobs.json"); } }
 
+        /// <summary>%APPDATA%\CCJ\ui.json, which only remembers how the window should look.</summary>
+        public static string UiSettingsPath { get { return Path.Combine(DataDir, "ui.json"); } }
+
         /// <summary>%APPDATA%\CCJ\app.log</summary>
         public static string AppLogPath { get { return Path.Combine(DataDir, "app.log"); } }
 

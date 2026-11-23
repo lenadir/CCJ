@@ -64,6 +64,70 @@ namespace CCJ.Models
             return file;
         }
 
+        /// <summary>
+        /// A key no job in the list uses yet, in the same "FolderN" shape as the first three, so
+        /// the script it writes is Backup_FolderN.bat.
+        /// </summary>
+        public string NextFreeKey()
+        {
+            for (int i = 1; i < 10000; i++)
+            {
+                string key = "Folder" + i;
+                if (FindByKey(key) == null) return key;
+            }
+            return "Folder" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        }
+
+        /// <summary>
+        /// Adds an empty job with a free key. Its paths are left blank on purpose: an untouched new
+        /// job is skipped when saving rather than reported as a problem.
+        /// </summary>
+        public JobConfig AddJob()
+        {
+            string key = NextFreeKey();
+
+            JobConfig job = new JobConfig();
+            job.Key = key;
+            job.JobName = key;
+            job.SourcePath = "";
+            job.NasRoot = Jobs.Count > 0 ? Jobs[0].NasRoot : DefaultNasRoot;
+            job.NasFolder = "";
+            job.FirstRunDate = NextSunday();
+            job.Enabled = false;
+
+            Jobs.Add(job);
+            return job;
+        }
+
+        /// <summary>The jobs that have actually been filled in.</summary>
+        [JsonIgnore]
+        public List<JobConfig> ConfiguredJobs
+        {
+            get
+            {
+                List<JobConfig> configured = new List<JobConfig>();
+                foreach (JobConfig job in Jobs)
+                {
+                    if (!job.IsBlank) configured.Add(job);
+                }
+                return configured;
+            }
+        }
+
+        /// <summary>
+        /// The same settings with every untouched job dropped. This is what gets saved, so a job
+        /// the user added and left blank never reaches jobs.json, a script or Task Scheduler.
+        /// </summary>
+        public JobsFile WithoutBlankJobs()
+        {
+            JobsFile copy = new JobsFile();
+            copy.Version = Version;
+            copy.VoxRoot = VoxRoot;
+            foreach (JobConfig job in ConfiguredJobs)
+                copy.Jobs.Add(job.Clone());
+            return copy;
+        }
+
         public JobConfig FindByKey(string key)
         {
             foreach (JobConfig job in Jobs)

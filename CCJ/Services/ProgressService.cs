@@ -72,6 +72,7 @@ namespace CCJ.Services
         private readonly Dictionary<string, PlanEntry> _plans =
             new Dictionary<string, PlanEntry>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _claims = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _paused = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private Timer _timer;
         private int _busy;
@@ -123,6 +124,74 @@ namespace CCJ.Services
             {
                 CopyProgressMonitor monitor;
                 return _monitors.TryGetValue(key, out monitor) && !monitor.IsComplete;
+            }
+        }
+
+        /// <summary>
+        /// Where this run's robocopy log is, as soon as the run has one. It identifies the robocopy
+        /// process to pause, resume or stop, and tells a dry run apart from a real run.
+        /// </summary>
+        public string ActiveLogPath(string key)
+        {
+            lock (_gate)
+            {
+                CopyProgressMonitor monitor;
+                return _monitors.TryGetValue(key, out monitor) ? monitor.LogPath : null;
+            }
+        }
+
+        /// <summary>The folder this run logs into, which is under TEMP for a dry run.</summary>
+        public string ActiveLogsDir(string key)
+        {
+            lock (_gate)
+            {
+                CopyProgressMonitor monitor;
+                return _monitors.TryGetValue(key, out monitor) ? monitor.LogsDir : null;
+            }
+        }
+
+        /// <summary>The NAS folder name of the run being followed, the prefix of its log name.</summary>
+        public string ActiveFolder(string key)
+        {
+            lock (_gate)
+            {
+                CopyProgressMonitor monitor;
+                return _monitors.TryGetValue(key, out monitor) ? monitor.Folder : null;
+            }
+        }
+
+        /// <summary>True when the run being followed is a dry run.</summary>
+        public bool ActiveIsDryRun(string key)
+        {
+            lock (_gate)
+            {
+                CopyProgressMonitor monitor;
+                return _monitors.TryGetValue(key, out monitor) && monitor.IsDryRun;
+            }
+        }
+
+        /// <summary>
+        /// Records that the user paused or resumed this job, so the next snapshot says "paused"
+        /// rather than looking like a copy that has gone quiet. It does not suspend anything
+        /// itself: <see cref="CopyControl"/> does that.
+        /// </summary>
+        public void SetPaused(string key, bool paused)
+        {
+            lock (_gate)
+            {
+                if (paused) _paused.Add(key);
+                else _paused.Remove(key);
+            }
+
+            // Show it at once instead of at the next tick.
+            ThreadPool.QueueUserWorkItem(new WaitCallback(delegate { RunPoll(); }));
+        }
+
+        public bool IsPaused(string key)
+        {
+            lock (_gate)
+            {
+                return _paused.Contains(key);
             }
         }
 
@@ -201,6 +270,7 @@ namespace CCJ.Services
             {
                 if (_monitors.TryGetValue(key, out old)) _monitors.Remove(key);
                 _latest.Remove(key);
+                _paused.Remove(key);
             }
             if (old != null) old.Dispose();
         }
@@ -293,7 +363,14 @@ namespace CCJ.Services
                 if (current)
                 {
                     _latest[monitor.Key] = progress;
-                    if (monitor.IsComplete) _finishedAt[monitor.Key] = DateTime.Now;
+                    if (monitor.IsComplete)
+                    {
+                        _finishedAt[monitor.Key] = DateTime.Now;
+
+                        // A run that is over cannot be paused, so the flag must not linger and
+                        // mark the next run as paused.
+                        _paused.Remove(monitor.Key);
+                    }
                 }
             }
 
@@ -364,6 +441,9 @@ namespace CCJ.Services
             run.StartedAt = startedAt;
             run.IsDryRun = dryRun;
 
+            string key = job.Key;
+            run.IsPaused = new Func<bool>(delegate { return IsPaused(key); });
+
             if (_planner != null)
             {
                 string source = job.SourcePath;
@@ -431,6 +511,7 @@ namespace CCJ.Services
                 _monitors[run.Job.Key] = monitor;
                 _latest.Remove(run.Job.Key);
                 _finishedAt.Remove(run.Job.Key);
+                _paused.Remove(run.Job.Key);
             }
             if (old != null) old.Dispose();
 

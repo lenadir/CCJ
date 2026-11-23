@@ -52,15 +52,25 @@ namespace CCJ.Tests
         }
 
         [Test]
-        public void A_first_run_with_a_time_of_day_is_reported()
+        public void A_first_run_can_have_a_time_of_day()
         {
             JobConfig job = GoodJob();
             job.FirstRunDate = new DateTime(2026, 11, 22, 3, 30, 0);
 
+            Assert.That(Validation.ValidateJob(job), Is.Empty,
+                "the time of the weekly run is the user's to choose");
+        }
+
+        [Test]
+        public void A_time_of_day_does_not_excuse_the_wrong_weekday()
+        {
+            JobConfig job = GoodJob();
+            job.FirstRunDate = new DateTime(2026, 11, 23, 3, 30, 0); // Monday
+
             List<string> errors = Validation.ValidateJob(job);
 
             Assert.That(errors.Count, Is.EqualTo(1));
-            Assert.That(errors[0], Does.Contain("00:00"));
+            Assert.That(errors[0], Does.Contain("Sunday"));
         }
 
         // ------------------------------------------------------------- folder names
@@ -213,6 +223,71 @@ namespace CCJ.Tests
 
             Assert.That(errors.Count, Is.EqualTo(1));
             Assert.That(errors[0], Does.StartWith("Folder2:"));
+        }
+
+        [Test]
+        public void A_file_with_more_than_three_jobs_is_valid()
+        {
+            JobsFile file = JobsFile.CreateDefault();
+            JobConfig added = file.AddJob();
+            added.SourcePath = @"\\host\share";
+            added.NasRoot = @"\\nas\share";
+            added.NasFolder = "Extra";
+
+            Assert.That(file.Jobs.Count, Is.EqualTo(4));
+            Assert.That(added.Key, Is.EqualTo("Folder4"));
+            Assert.That(Validation.ValidateFile(file), Is.Empty);
+        }
+
+        [Test]
+        public void A_file_with_a_single_job_is_valid()
+        {
+            JobsFile file = JobsFile.CreateDefault();
+            file.Jobs.RemoveAt(2);
+            file.Jobs.RemoveAt(1);
+
+            Assert.That(file.Jobs.Count, Is.EqualTo(1));
+            Assert.That(Validation.ValidateFile(file), Is.Empty, "one job is enough");
+        }
+
+        [Test]
+        public void A_file_with_no_jobs_at_all_is_reported()
+        {
+            JobsFile file = JobsFile.CreateDefault();
+            file.Jobs.Clear();
+
+            List<string> errors = Validation.ValidateFile(file);
+
+            Assert.That(errors.Count, Is.EqualTo(1));
+            Assert.That(errors[0], Does.Contain("at least one job"));
+        }
+
+        [Test]
+        public void Two_jobs_with_the_same_key_are_reported()
+        {
+            JobsFile file = JobsFile.CreateDefault();
+            file.Jobs[1].Key = "Folder1";
+            file.Jobs[1].JobName = "Second";
+
+            List<string> errors = Validation.ValidateFile(file);
+
+            Assert.That(errors.Count, Is.EqualTo(1));
+            Assert.That(errors[0], Does.Contain("Backup_Folder1.bat"),
+                "two jobs with one key would write the same script");
+        }
+
+        [Test]
+        public void Two_jobs_with_the_same_name_are_reported()
+        {
+            JobsFile file = JobsFile.CreateDefault();
+            file.Jobs[1].JobName = file.Jobs[0].JobName;
+
+            List<string> errors = Validation.ValidateFile(file);
+
+            Assert.That(errors.Count, Is.EqualTo(1));
+            Assert.That(errors[0], Does.StartWith("Folder2:"));
+            Assert.That(errors[0], Does.Contain("already used by Folder1"),
+                "two jobs with one name would fight over one scheduled task");
         }
 
         [Test]

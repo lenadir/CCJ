@@ -176,6 +176,99 @@ namespace CCJ.Tests
             Assert.That(_service.Latest("Folder2").Attempt, Is.EqualTo(2));
         }
 
+        // ------------------------------------------------------------- pausing
+
+        /// <summary>
+        /// A copy that the user paused must say so. The service only records the flag; suspending
+        /// robocopy itself is CopyControl's job, which CopyControlTests covers.
+        /// </summary>
+        [Test]
+        public void A_paused_job_is_reported_as_paused_while_the_copy_is_under_way()
+        {
+            StartCopying("ALPHA");
+
+            Assert.That(_service.Latest("Folder1").Phase, Is.EqualTo(CopyPhase.Copying));
+            Assert.That(_service.IsPaused("Folder1"), Is.False);
+
+            _service.SetPaused("Folder1", true);
+            _service.PollOnce();
+
+            Assert.That(_service.IsPaused("Folder1"), Is.True);
+            Assert.That(_service.Latest("Folder1").Phase, Is.EqualTo(CopyPhase.Paused));
+            Assert.That(_service.IsActive("Folder1"), Is.True, "a paused run is not a finished run");
+
+            _service.SetPaused("Folder1", false);
+            _service.PollOnce();
+
+            Assert.That(_service.Latest("Folder1").Phase, Is.EqualTo(CopyPhase.Copying));
+        }
+
+        [Test]
+        public void Pausing_one_job_leaves_the_others_copying()
+        {
+            StartCopying("ALPHA");
+            StartCopying("BRAVO");
+
+            _service.SetPaused("Folder1", true);
+            _service.PollOnce();
+
+            Assert.That(_service.Latest("Folder1").Phase, Is.EqualTo(CopyPhase.Paused));
+            Assert.That(_service.Latest("Folder2").Phase, Is.EqualTo(CopyPhase.Copying));
+        }
+
+        [Test]
+        public void A_run_that_ends_while_paused_is_not_left_looking_paused()
+        {
+            StartCopying("ALPHA");
+            _service.SetPaused("Folder1", true);
+            _service.PollOnce();
+            Assert.That(_service.Latest("Folder1").Phase, Is.EqualTo(CopyPhase.Paused));
+
+            ProgressTestSupport.Append(MasterPath,
+                ProgressTestSupport.Success("ALPHA", Path.Combine(_logs, "ALPHA_2026-11-18_08-00-00.log")));
+            _service.PollOnce();
+
+            Assert.That(_service.Latest("Folder1").Phase, Is.EqualTo(CopyPhase.Finished));
+            Assert.That(_service.IsPaused("Folder1"), Is.False, "the flag must not linger after the run");
+        }
+
+        [Test]
+        public void The_log_of_the_run_is_available_so_its_robocopy_can_be_found()
+        {
+            string logName = StartCopying("CHARLIE");
+
+            Assert.That(_service.ActiveLogPath("Folder3"), Is.EqualTo(Path.Combine(_logs, logName)));
+            Assert.That(_service.ActiveLogsDir("Folder3"), Is.EqualTo(_logs));
+            Assert.That(_service.ActiveFolder("Folder3"), Is.EqualTo("CHARLIE"));
+            Assert.That(_service.ActiveIsDryRun("Folder3"), Is.False);
+        }
+
+        /// <summary>
+        /// Brings one job to the point where robocopy is copying: a tracked run, a "job started"
+        /// line and a robocopy log with one file in it.
+        /// </summary>
+        private string StartCopying(string folder)
+        {
+            JobConfig job = null;
+            foreach (JobConfig candidate in _settings.Jobs)
+            {
+                if (candidate.NasFolder == folder) job = candidate;
+            }
+
+            _service.TrackTask(job);
+
+            string logName = ProgressTestSupport.LogName(folder, "2026-11-18_08-00-00");
+            File.WriteAllText(Path.Combine(_logs, logName),
+                ProgressTestSupport.Header("Wed Nov 18 2026 8:00:00 AM") +
+                ProgressTestSupport.FileLine("take 1.wav", 2048));
+
+            ProgressTestSupport.Append(MasterPath,
+                ProgressTestSupport.Started(folder) + ProgressTestSupport.Attempt(1, 6));
+
+            _service.PollOnce();
+            return logName;
+        }
+
         // ------------------------------------------------------------- finding a run that is already going
 
         [Test]

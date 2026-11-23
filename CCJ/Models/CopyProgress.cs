@@ -20,7 +20,10 @@ namespace CCJ.Models
         Failed,
 
         /// <summary>The task ended without logging a result, for example because it was stopped.</summary>
-        Stopped
+        Stopped,
+
+        /// <summary>robocopy is suspended, waiting for Resume. The run is still alive.</summary>
+        Paused
     }
 
     /// <summary>Human readable sizes and durations, shared by the grid, the dialogs and the tests.</summary>
@@ -101,9 +104,20 @@ namespace CCJ.Models
         /// <summary>Why the total is unknown, when it is.</summary>
         public string PlanError { get; set; }
 
+        /// <summary>A paused run is still a run: it is only waiting to be resumed.</summary>
         public bool IsActive
         {
-            get { return Phase == CopyPhase.Waiting || Phase == CopyPhase.Copying; }
+            get
+            {
+                return Phase == CopyPhase.Waiting || Phase == CopyPhase.Copying ||
+                       Phase == CopyPhase.Paused;
+            }
+        }
+
+        /// <summary>True while robocopy exists and can be paused, resumed or stopped.</summary>
+        public bool IsRunning
+        {
+            get { return Phase == CopyPhase.Copying || Phase == CopyPhase.Paused; }
         }
 
         /// <summary>
@@ -163,6 +177,12 @@ namespace CCJ.Models
                         return prefix + FilesDone.ToString("N0", CultureInfo.CurrentCulture) + " files" +
                                (Planning ? " · counting..." : "");
 
+                    case CopyPhase.Paused:
+                        if (Fraction.HasValue)
+                            return prefix + "Paused · " + Percent + "%";
+                        return prefix + "Paused · " +
+                               FilesDone.ToString("N0", CultureInfo.CurrentCulture) + " files";
+
                     case CopyPhase.Finished:
                         if (FilesDone == 0) return prefix + "Done · nothing to copy";
                         return prefix + "Done · " + FilesDone.ToString("N0", CultureInfo.CurrentCulture) + " files";
@@ -207,7 +227,8 @@ namespace CCJ.Models
                     text.AppendLine();
                 }
 
-                if (Phase == CopyPhase.Copying && !string.IsNullOrEmpty(CurrentFile))
+                if ((Phase == CopyPhase.Copying || Phase == CopyPhase.Paused) &&
+                    !string.IsNullOrEmpty(CurrentFile))
                 {
                     text.Append("Now copying: ").Append(CurrentFile)
                         .Append(" (").Append(SizeFormat.Bytes(CurrentFileBytes)).Append(")")
@@ -216,6 +237,12 @@ namespace CCJ.Models
                 else if (!string.IsNullOrEmpty(Message))
                 {
                     text.Append(Message).AppendLine();
+                }
+
+                if (Phase == CopyPhase.Paused)
+                {
+                    text.Append("Paused: robocopy is suspended, so nothing is being written. ")
+                        .Append("Use Resume to carry on, or Stop to end the run.").AppendLine();
                 }
 
                 if (ErrorLines > 0)
@@ -241,6 +268,7 @@ namespace CCJ.Models
             {
                 case CopyPhase.Waiting: return "waiting";
                 case CopyPhase.Copying: return "copying";
+                case CopyPhase.Paused: return "paused";
                 case CopyPhase.Finished: return "finished";
                 case CopyPhase.Failed: return "failed";
                 default: return "stopped";

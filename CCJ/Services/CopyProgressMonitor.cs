@@ -37,6 +37,12 @@ namespace CCJ.Services
         /// <summary>Asks whether the run is still alive. Null means unknown.</summary>
         public Func<bool> IsRunning { get; set; }
 
+        /// <summary>
+        /// Asks whether the user has paused this run, so a copy that is suspended is reported as
+        /// paused instead of looking like a copy that has stalled. Null means never paused.
+        /// </summary>
+        public Func<bool> IsPaused { get; set; }
+
         /// <summary>Time allowed for the run to show signs of life before "not running" counts.</summary>
         public TimeSpan Grace { get; set; }
 
@@ -161,6 +167,14 @@ namespace CCJ.Services
         public bool IsComplete { get; private set; }
         public CopyProgress Last { get { return _last; } }
         public string LogPath { get { return _logPath; } }
+
+        /// <summary>The folder this run's logs are written to, which tells a dry run from a real one.</summary>
+        public string LogsDir { get { return _run.LogsDir; } }
+
+        /// <summary>The NAS folder name, which is also the prefix of this run's robocopy log.</summary>
+        public string Folder { get { return _folder; } }
+
+        public bool IsDryRun { get { return _run.IsDryRun; } }
 
         // ------------------------------------------------------------------ polling
 
@@ -568,8 +582,30 @@ namespace CCJ.Services
                     : "Starting. Checking that the source and the NAS can be reached.";
             }
 
-            if (p.Phase == CopyPhase.Copying) AddRate(p, now);
+            if (p.Phase == CopyPhase.Copying && IsPausedNow())
+            {
+                // Suspended on purpose. The counts stay as they are; nothing is moving.
+                p.Phase = CopyPhase.Paused;
+            }
+            else if (p.Phase == CopyPhase.Copying)
+            {
+                AddRate(p, now);
+            }
+
             return p;
+        }
+
+        private bool IsPausedNow()
+        {
+            if (_run.IsPaused == null) return false;
+            try
+            {
+                return _run.IsPaused();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private bool IsStopped(DateTime now)
