@@ -40,26 +40,31 @@ namespace CCJ.Forms
             _text.Text = content;
             _text.BackColor = Color.White;
 
-            Panel buttons = new Panel();
+            // The buttons are laid out by the panel itself, right to left, rather than placed at
+            // a position worked out from the form's width. Anchoring them to a panel that has not
+            // been docked yet pushes them off the right edge when it is later stretched to the
+            // width of the form, which leaves the dialog with no reachable buttons at all.
+            FlowLayoutPanel buttons = new FlowLayoutPanel();
             buttons.Dock = DockStyle.Bottom;
             buttons.Height = 52;
+            buttons.FlowDirection = FlowDirection.RightToLeft;
+            buttons.Padding = new Padding(0, 11, 12, 0);
 
             _confirm = new Button();
             _confirm.Text = string.IsNullOrEmpty(confirmText) ? "Write" : confirmText;
             _confirm.DialogResult = DialogResult.OK;
             _confirm.Size = new Size(190, 30);
-            _confirm.Location = new Point(this.ClientSize.Width - 320, 11);
-            _confirm.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _confirm.Margin = new Padding(0, 0, 6, 0);
 
             _cancel = new Button();
             _cancel.Text = "Cancel";
             _cancel.DialogResult = DialogResult.Cancel;
             _cancel.Size = new Size(110, 30);
-            _cancel.Location = new Point(this.ClientSize.Width - 124, 11);
-            _cancel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _cancel.Margin = new Padding(0);
 
-            buttons.Controls.Add(_confirm);
+            // Right to left: the first one added sits furthest right.
             buttons.Controls.Add(_cancel);
+            buttons.Controls.Add(_confirm);
 
             Panel body = new Panel();
             body.Dock = DockStyle.Fill;

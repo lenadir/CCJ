@@ -61,16 +61,20 @@ namespace CCJ.Forms
                 ? ""
                 : (allOk ? "All " + count + " checks passed." : "Some checks failed - see above.");
 
-            Panel buttons = new Panel();
+            // Laid out by the panel, right to left. A position worked out from the form's width
+            // plus a right anchor lands outside the panel once it is docked, which would leave the
+            // dialog with no visible Close button.
+            FlowLayoutPanel buttons = new FlowLayoutPanel();
             buttons.Dock = DockStyle.Bottom;
             buttons.Height = 52;
+            buttons.FlowDirection = FlowDirection.RightToLeft;
+            buttons.Padding = new Padding(0, 11, 12, 0);
 
             Button close = new Button();
             close.Text = "Close";
             close.DialogResult = DialogResult.OK;
             close.Size = new Size(110, 30);
-            close.Location = new Point(this.ClientSize.Width - 124, 11);
-            close.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            close.Margin = new Padding(0);
             buttons.Controls.Add(close);
 
             if (!string.IsNullOrEmpty(extraButtonText) && extraButtonClick != null)
@@ -78,7 +82,7 @@ namespace CCJ.Forms
                 Button extra = new Button();
                 extra.Text = extraButtonText;
                 extra.Size = new Size(230, 30);
-                extra.Location = new Point(12, 11);
+                extra.Margin = new Padding(0, 0, 6, 0);
                 extra.Click += extraButtonClick;
                 buttons.Controls.Add(extra);
             }

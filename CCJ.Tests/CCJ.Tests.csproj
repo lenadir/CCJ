@@ -45,6 +45,9 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml" />
+    <!-- The dialog layout tests build real forms. -->
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,6 +55,7 @@
     <Compile Include="CopyControlTests.cs" />
     <Compile Include="CopyProgressModelTests.cs" />
     <Compile Include="CopyProgressMonitorTests.cs" />
+    <Compile Include="DialogLayoutTests.cs" />
     <Compile Include="IncrementalLineReaderTests.cs" />
     <Compile Include="JobRepositoryTests.cs" />
     <Compile Include="JobsFileTests.cs" />

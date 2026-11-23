@@ -77,7 +77,7 @@ keeps `packages\` byte-exact (no line-ending conversion).
 run-tests.cmd
 ```
 
-Builds, runs the 315 unit tests, then runs the exe's own self test. Every test works in a
+Builds, runs the 322 unit tests, then runs the exe's own self test. Every test works in a
 folder under `%TEMP%`; no network path is ever touched. The tests also run with
 `CCJ_DATA_DIR` pointed at a throwaway folder, so they can never read or change your real
 `jobs.json` or `app.log`. The tests are a self-running NUnitLite
@@ -281,6 +281,13 @@ CCJ.Tests\                    NUnit tests, run by NUnitLite
 
 The forms hold no backup logic: they move values between controls and a `JobConfig` and call a
 service. Network work is `async` so the window never freezes.
+
+**Dialog layout.** A button is positioned by the panel that holds it (a right-to-left
+`FlowLayoutPanel`), never by a position worked out from the form's width plus a right anchor.
+That older pattern looked right and was not: anchoring a button to a panel that has not been
+docked yet makes the panel's later stretch push the button off the right edge, so the dialog
+opens with nothing to click. `CCJ.Tests\DialogLayoutTests.cs` asserts that every button of every
+dialog lies inside the window, as opened and after a resize.
 
 ### The progress bar
 
