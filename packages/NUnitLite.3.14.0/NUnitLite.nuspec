@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata minClientVersion="2.12">
+    <id>NUnitLite</id>
+    <version>3.14.0</version>
+    <title>NUnitLite</title>
+    <authors>Charlie Poole, Rob Prouse</authors>
+    <owners>Charlie Poole, Rob Prouse</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="file">LICENSE.txt</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <icon>icon.png</icon>
+    <readme>README.md</readme>
+    <projectUrl>https://nunit.org/</projectUrl>
+    <iconUrl>https://cdn.rawgit.com/nunit/resources/master/images/icon/nunit_256.png</iconUrl>
+    <description>NUnitLite provides a simple way to run NUnit tests, without the overhead of a full NUnit installation. It is suitable for projects that want to have a quick way to run tests using a console runner and don't need all the features of the NUnit engine and console runner.
+
+Supported platforms:
+- .NET Framework 3.5+
+- .NET Standard 2.0+
+- .NET Core 3.1+
+- .NET 5.0+
+
+How to use this package:
+
+1. Create a console application for your tests and delete the generated class containing Main().
+2. Install the NUnitLite package, which creates a new Main() as well as adding a reference to NUnitLite. This will also bring in the NUnit package, which adds a reference to the NUnit framework to your project.
+3. Add your tests to the test project and simply start the project to execute them.</description>
+    <summary>NUnitlite is a lightweight runner for tests that use the NUnit testing framework.</summary>
+    <copyright>Copyright (c) 2023 Charlie Poole, Rob Prouse</copyright>
+    <language>en-US</language>
+    <tags>test unit testing tdd framework fluent assert device phone embedded</tags>
+    <repository type="git" url="https://github.com/nunit/nunit" />
+    <dependencies>
+      <group targetFramework=".NETFramework3.5">
+        <dependency id="NUnit" version="[3.14.0]" />
+      </group>
+      <group targetFramework=".NETFramework4.0">
+        <dependency id="NUnit" version="[3.14.0]" />
+      </group>
+      <group targetFramework=".NETFramework4.5">
+        <dependency id="NUnit" version="[3.14.0]" />
+      </group>
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="NUnit" version="[3.14.0]" />
+        <dependency id="NETStandard.Library" version="2.0.0" />
+      </group>
+      <group targetFramework=".NETCoreApp3.1">
+        <dependency id="NUnit" version="[3.14.0]" />
+      </group>
+      <group targetFramework="net5.0">
+        <dependency id="NUnit" version="[3.14.0]" />
+      </group>
+      <group targetFramework="net6.0">
+        <dependency id="NUnit" version="[3.14.0]" />
+      </group>
+      <group targetFramework="net7.0">
+        <dependency id="NUnit" version="[3.14.0]" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

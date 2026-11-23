@@ -58,15 +58,16 @@ deployment notes in `INSTALL.md`.
 **In Visual Studio:** open `CCJ.sln` and build. The projects use `packages.config`, and the
 package folders the build script creates are the same ones VS restores into.
 
-**Packages** (restored by `tools\restore-packages.ps1`, which downloads the `.nupkg` files
-directly because `nuget.exe` is not installed on the target machine):
+**Packages.** The extracted packages are committed in `packages\`, so a fresh clone builds with
+no download at all. `tools\restore-packages.ps1` (run by `build.cmd`) only fetches a package that
+is missing, straight from nuget.org, because `nuget.exe` is not installed on the target machine:
 
 - `TaskScheduler` 2.12.2 (`lib\net48`), the NuGet package that provides `Microsoft.Win32.TaskScheduler.dll`
 - `Newtonsoft.Json` 13.0.4 (`lib\net45`)
 - `NUnit` 3.14.0 and `NUnitLite` 3.14.0 (tests only)
 
-If the machine has no internet access, copy the whole `packages\` folder from a machine that
-does.
+Because they are committed, a machine with no internet access can build as well. `.gitattributes`
+keeps `packages\` byte-exact (no line-ending conversion).
 
 ### Tests
 
@@ -303,9 +304,9 @@ finished files.
 apart, the PowerShell timestamp and the robocopy options — is byte-for-byte the reference.
 
 `CCJ.Tests\ReferenceFidelityTests.cs` renders a script using the reference's own values and
-compares it with `Vox\Backup_Folder1.bat` line by line. That reference script holds site
-specific paths, so it is **not part of the repository**: on a fresh clone these two tests are
-reported as ignored until you put your own `Vox\Backup_Folder1.bat` in place. Only line 4, the comment naming the
+compares it with `Vox\Backup_Folder1.bat` line by line. `Vox\` is committed and kept byte-exact
+by `.gitattributes`, so the comparison runs on a fresh clone. If you ever remove that file, the
+two fidelity tests are reported as ignored instead of failing. Only line 4, the comment naming the
 destination of that particular job, is allowed to differ. **If anyone edits the template and
 changes the retry loop, a label or an ERRORLEVEL check, that test fails.**
 

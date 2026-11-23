@@ -12,3 +12,9 @@
 *.exe binary
 *.dll binary
 *.png binary
+
+# Never touch these, whatever their extension. They are compared byte for byte: Vox\ holds the
+# reference script that the fidelity tests check the generator against, and packages\ is
+# third party code. These lines come last so they override the rules above.
+Vox/** -text
+packages/** -text

@@ -1,0 +1,72 @@
+@echo off
+rem ============================================================
+rem  Backup_Folder1.bat
+rem  Copies the source folder to NAS\ENREGISTREMENT NV\NADIR
+rem  Copy only. Never deletes anything (no /MIR, no /PURGE).
+rem ============================================================
+
+rem --- SETTINGS: only edit these lines -------------------------
+set "SRC_SERVER=192.168.100.205"
+set "SRC_SHARE=vox"
+set "DST_ROOT=\\192.168.100.100\3G eng\ENREGISTREMENT NV"
+set "FOLDER=NADIR"
+set "MAX_ATTEMPTS=6"
+set "WAIT_SECONDS=900"
+rem -------------------------------------------------------------
+
+set "SRC=\\192.168.100.205\vox\ENREGISTREMENT NV\JUILLET-AOUT"
+set "DST=%DST_ROOT%\%FOLDER%"
+set "LOGDIR=C:\Vox\Logs"
+set "MASTER=%LOGDIR%\master.log"
+
+if not exist "%LOGDIR%\" mkdir "%LOGDIR%"
+
+rem Timestamp made by PowerShell so it works on any Windows language setting
+for /f "usebackq delims=" %%T in (`powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm-ss"`) do set "STAMP=%%T"
+set "LOGFILE=%LOGDIR%\%FOLDER%_%STAMP%.log"
+
+set /a ATTEMPT=0
+echo [%date% %time%] ===== %FOLDER% job started: "%SRC%" to "%DST%">>"%MASTER%"
+
+:TRY
+set /a ATTEMPT+=1
+echo [%date% %time%] Attempt %ATTEMPT% of %MAX_ATTEMPTS% >>"%MASTER%"
+
+if not exist "%DST_ROOT%\" (
+  set "REASON=NAS share not reachable: %DST_ROOT%"
+  goto RETRY
+)
+if not exist "%SRC%\" (
+  set "REASON=Source folder not reachable: %SRC%"
+  goto RETRY
+)
+if not exist "%DST%\" mkdir "%DST%"
+
+rem /E    = copy all subfolders, including empty ones. Nothing is deleted.
+rem /Z    = restartable mode (resumes interrupted network copies)
+rem /R:10 = retry each failed file 10 times
+rem /W:30 = wait 30 seconds between file retries
+rem /XJ   = skip junction points (avoids loops)
+rem /NP   = no progress percentages in the log
+rem /LOG  = write a new log file for this run
+robocopy "%SRC%" "%DST%" /E /Z /XJ /R:10 /W:30 /COPY:DAT /DCOPY:T /NP /LOG:"%LOGFILE%"
+set "RC=%ERRORLEVEL%"
+
+rem Robocopy exit codes 0-7 = success (0 = nothing new, 1 = files copied, etc.)
+rem 8 or higher = at least one file failed or a fatal error occurred
+if %RC% LSS 8 goto SUCCESS
+set "REASON=robocopy failed with exit code %RC%, see %LOGFILE%"
+
+:RETRY
+if %ATTEMPT% GEQ %MAX_ATTEMPTS% goto FAILED
+echo [%date% %time%] Problem: %REASON%. Waiting %WAIT_SECONDS% seconds, then retrying.>>"%MASTER%"
+ping -n %WAIT_SECONDS% 127.0.0.1 >nul
+goto TRY
+
+:SUCCESS
+echo [%date% %time%] SUCCESS: %FOLDER% copied, robocopy exit code %RC%. Log: %LOGFILE%>>"%MASTER%"
+exit /b 0
+
+:FAILED
+echo [%date% %time%] FAILED: %FOLDER% not copied after %ATTEMPT% attempts. Last problem: %REASON% >>"%MASTER%"
+exit /b 1

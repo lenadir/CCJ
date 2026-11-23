@@ -1,17 +1,14 @@
 bin/
 obj/
-packages/
 *.user
 *.suo
 .vs/
 
-# Generated at run time, not source. The real scripts and logs also hold site specific
-# paths, so they are not published.
-Vox/Logs/*.log
-Vox/Backup_Folder*.bat
-
 # dist/ holds the release build (CCJ.exe, CCJ-Setup.exe and what they need) and IS committed.
 # Rebuild it with build-installer.cmd before committing, so it matches the source.
+#
+# packages/ (the extracted NuGet packages) and Vox/ (the reference scripts and their logs) are
+# committed too, so a fresh clone builds offline and the script fidelity tests can run.
 
 # The original brief, kept out of the public repository.
 prompt.txt
