@@ -1,9 +1,0 @@
-[11/11/2026 14:21:54,56] ===== Folder1 job started: "\\192.168.100.205\vox\Folder1" to "\\192.168.100.100\3G eng\Folder1"
-[11/11/2026 14:21:54,56] Attempt 1 of 6 
-[11/11/2026 14:21:54,58] Problem: Source folder not reachable: \\192.168.100.205\vox\Folder1. Waiting 900 seconds, then retrying.
-[11/11/2026 14:29:12,91] ===== Folder2 job started: "\\192.168.100.205\vox\Folder2" to "\\192.168.100.100\3G eng\Folder2"
-[11/11/2026 14:29:12,92] Attempt 1 of 6 
-[11/11/2026 14:29:12,93] Problem: Source folder not reachable: \\192.168.100.205\vox\Folder2. Waiting 900 seconds, then retrying.
-[11/11/2026 14:33:22,43] ===== Folder3 job started: "\\192.168.100.205\vox\Folder3" to "\\192.168.100.100\3G eng\Folder3"
-[11/11/2026 14:33:22,43] Attempt 1 of 6 
-[11/11/2026 14:33:22,43] Problem: Source folder not reachable: \\192.168.100.205\vox\Folder3. Waiting 900 seconds, then retrying.
