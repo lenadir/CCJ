@@ -381,11 +381,12 @@ Windows draws itself.
 apart, the PowerShell timestamp and the robocopy options — is byte-for-byte the reference.
 
 `CCJ.Tests\ReferenceFidelityTests.cs` renders a script using the reference's own values and
-compares it with `Vox\Backup_Folder1.bat` line by line. `Vox\` is committed and kept byte-exact
-by `.gitattributes`, so the comparison runs on a fresh clone. If you ever remove that file, the
-two fidelity tests are reported as ignored instead of failing. Only line 4, the comment naming the
+compares it with `Vox\Backup_Folder1.bat` line by line. `Vox\` is a local dev/test folder, not
+committed to the repo, so a fresh clone has no reference file: the two fidelity tests notice it is
+missing and report themselves as ignored instead of failing. Only line 4, the comment naming the
 destination of that particular job, is allowed to differ. **If anyone edits the template and
-changes the retry loop, a label or an ERRORLEVEL check, that test fails.**
+changes the retry loop, a label or an ERRORLEVEL check while `Vox\Backup_Folder1.bat` is present,
+that test fails.**
 
 Output is always CRLF, with no byte order mark (a BOM would break `@echo off`), written in the
 console code page that `cmd.exe` uses to read batch files.
