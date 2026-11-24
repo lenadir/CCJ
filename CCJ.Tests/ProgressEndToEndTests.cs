@@ -58,7 +58,7 @@ namespace CCJ.Tests
             _job.SourcePath = _src;
             _job.NasRoot = _nas;
             _job.NasFolder = "Folder1";
-            _job.FirstRunDate = JobsFile.NextSunday();
+            _job.FirstRunDate = JobsFile.DefaultFirstRun();
         }
 
         [TearDown]

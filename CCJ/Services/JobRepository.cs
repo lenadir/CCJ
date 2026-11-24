@@ -114,7 +114,7 @@ namespace CCJ.Services
                     if (job.NasRoot == null) job.NasRoot = "";
                     if (job.NasFolder == null) job.NasFolder = "";
                     if (job.FirstRunDate == default(DateTime))
-                        job.FirstRunDate = JobsFile.NextSunday();
+                        job.FirstRunDate = JobsFile.DefaultFirstRun();
                 }
             }
 

@@ -49,7 +49,8 @@ namespace CCJ.Tests
             Assert.That(added.Enabled, Is.False);
             Assert.That(added.SourcePath, Is.Empty);
             Assert.That(added.NasFolder, Is.Empty);
-            Assert.That(added.FirstRunDate.DayOfWeek, Is.EqualTo(DayOfWeek.Sunday));
+            Assert.That(added.FirstRunDate, Is.GreaterThan(DateTime.Now),
+                "a new job is offered a first run just ahead, so it can be scheduled at once");
         }
 
         [Test]

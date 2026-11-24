@@ -2,7 +2,7 @@
 
 CCJ manages Robocopy backup jobs. It starts with three (**Folder1**, **Folder2**, **Folder3**)
 and you can add as many more as you need. Each job copies a source folder to a NAS folder,
-**every 3 weeks on a Sunday, at the time you choose**, through Windows Task Scheduler.
+**every 3 weeks, on the day and at the time you choose**, through Windows Task Scheduler.
 
 CCJ only ever **copies**. It never deletes anything on the destination.
 
@@ -30,8 +30,10 @@ you do, press **Restart as administrator** in the banner.
    - **NAS root (UNC)** — e.g. `\\192.168.100.100\3G eng`
    - **NAS folder name** — the single folder under that root. The grey **Destination** line
      below shows the full result; check it reads what you expect.
-   - **First run** — must be a **Sunday**, and next to it the **time** of day the backup should
-     start. The weekly run repeats at that time.
+   - **First run** — **any date you like**, including today, and next to it the **time** of day
+     the backup should start. There is no waiting for a particular weekday: pick today and a time
+     a few minutes from now and it runs straight away. Whatever day you pick is the day the job
+     repeats on, every 3 weeks, at that same time.
    - **Enabled** — tick the jobs you want to run. *Everything starts switched off.* Ticking it
      takes effect at once: it is saved and the scheduled task is switched straight away.
 4. Need more jobs? Press **Add another job** and fill the new box in.
@@ -91,7 +93,7 @@ it only lists files. Nothing is copied, the NAS folder is not created, and logs 
 `%TEMP%\CCJ_DryRun`. You get the exit code and the last log lines when it finishes. **Do this
 first, every time you change a job.**
 
-**…run a backup right now instead of waiting for Sunday?**
+**…run a backup right now instead of waiting for its scheduled day?**
 Select the row → **Start copy** → check the source, destination, file count and the
 **To copy now** line → confirm. The task must already exist (press **Save** first if the Task
 column says `missing`). The Dashboard shows the progress bar as soon as it starts.
@@ -112,7 +114,7 @@ it: its scheduled task is deleted, and its script file and logs are left alone.
 
 **…see how far a backup has got?**
 Look at the **Progress** column on the Dashboard, and click the row for the details underneath.
-It also works for a backup you did not start: the scheduled Sunday run shows up by itself when
+It also works for a backup you did not start: the scheduled run shows up by itself when
 you open CCJ, even if it began hours earlier. Press **↻** to look again straight away.
 
 **…change a path or a date?**
@@ -122,7 +124,7 @@ Jobs tab → edit → **Save**. The scripts are rewritten and the tasks updated.
 Jobs tab → clear its **Enabled** box. The task stays but will not fire. The Dashboard shows the
 change at once.
 
-**…check it will work before Sunday?**
+**…check it will work before the scheduled run?**
 **Check connectivity**, then **Check credentials**. Both must be clean for a job that runs while
 you are logged off.
 
@@ -182,7 +184,7 @@ errors (a locked file, a dropped connection); it retries by itself, 10 times, 30
 | `0x0 = success` | The last run worked. |
 | `no task` / `never run` | Nothing has run yet. Normal for a new job. |
 | `0x41301 = currently running` | It is running now. A job can take up to ~1¼ hours because of retries. |
-| `0x41303 = has never run` | Normal before the first Sunday. |
+| `0x41303 = has never run` | Normal before the first scheduled run. |
 | anything else, in red | It failed. See the troubleshooting table in `README.md`. |
 
 ---
@@ -208,7 +210,8 @@ can therefore take up to about 1 hour 15 minutes before it gives up.
   running logged-off cannot rely on mapped drives.
 - The NAS folder name must be one plain folder name: no `\ / : * ? " < > |`, no reserved names
   (`CON`, `NUL`, `COM1`…), no leading or trailing spaces or dots.
-- The first run must be a **Sunday**; the time is yours to choose.
+- The first run can be any date and any time, including today; the job then repeats on that
+  weekday.
 - Two jobs cannot share a name, because the name becomes the scheduled task name.
 - At least one job has to be filled in.
 

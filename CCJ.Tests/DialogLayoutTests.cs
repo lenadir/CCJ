@@ -85,7 +85,7 @@ namespace CCJ.Tests
             job.SourcePath = @"\\host\share";
             job.NasRoot = @"\\nas\share";
             job.NasFolder = "NADIR";
-            job.FirstRunDate = JobsFile.NextSunday();
+            job.FirstRunDate = JobsFile.DefaultFirstRun();
 
             using (ConfirmRunForm real = new ConfirmRunForm(job, false))
             {

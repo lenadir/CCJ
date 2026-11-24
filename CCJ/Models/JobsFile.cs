@@ -33,20 +33,23 @@ namespace CCJ.Models
         [JsonIgnore]
         public string MasterLogPath { get { return Path.Combine(LogsDir, "master.log"); } }
 
-        /// <summary>The next Sunday at 00:00, used as the default first run date.</summary>
-        public static DateTime NextSunday()
+        /// <summary>
+        /// The default first run: a few minutes from now, rounded to the next five, so a new job
+        /// can be scheduled straight away. Any day and any time is allowed; whatever weekday the
+        /// first run falls on is the weekday the task then repeats on.
+        /// </summary>
+        public static DateTime DefaultFirstRun()
         {
-            DateTime d = DateTime.Today.AddDays(1);
-            while (d.DayOfWeek != DayOfWeek.Sunday)
-                d = d.AddDays(1);
-            return d.Date;
+            DateTime now = DateTime.Now.AddMinutes(5);
+            int minute = now.Minute - (now.Minute % 5);
+            return new DateTime(now.Year, now.Month, now.Day, now.Hour, minute, 0);
         }
 
         public static JobsFile CreateDefault()
         {
             JobsFile file = new JobsFile();
             file.VoxRoot = AppPaths.GuessVoxRoot();
-            DateTime sunday = NextSunday();
+            DateTime firstRun = DefaultFirstRun();
 
             for (int i = 1; i <= 3; i++)
             {
@@ -57,7 +60,7 @@ namespace CCJ.Models
                 job.SourcePath = DefaultSource;
                 job.NasRoot = DefaultNasRoot;
                 job.NasFolder = key;
-                job.FirstRunDate = sunday;
+                job.FirstRunDate = firstRun;
                 job.Enabled = false;
                 file.Jobs.Add(job);
             }
@@ -92,7 +95,7 @@ namespace CCJ.Models
             job.SourcePath = "";
             job.NasRoot = Jobs.Count > 0 ? Jobs[0].NasRoot : DefaultNasRoot;
             job.NasFolder = "";
-            job.FirstRunDate = NextSunday();
+            job.FirstRunDate = DefaultFirstRun();
             job.Enabled = false;
 
             Jobs.Add(job);

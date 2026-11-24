@@ -39,7 +39,7 @@ namespace CCJ.Tests
             job.SourcePath = @"\\192.168.100.205\vox\ENREGISTREMENT NV\JUILLET-AOUT";
             job.NasRoot = @"\\192.168.100.100\3G eng\ENREGISTREMENT NV";
             job.NasFolder = nasFolder;
-            job.FirstRunDate = JobsFile.NextSunday();
+            job.FirstRunDate = JobsFile.DefaultFirstRun();
             return job;
         }
 

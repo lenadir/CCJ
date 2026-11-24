@@ -35,7 +35,7 @@ namespace CCJ.Services
     /// <summary>
     /// Keeps one <see cref="CopyProgressMonitor"/> per job, polls them on a background timer and
     /// tells the form when something changed. It also notices a task that is already running, for
-    /// example the Sunday 00:00 run that started while CCJ was closed, and attaches to it.
+    /// example a scheduled run that started while CCJ was closed, and attaches to it.
     ///
     /// Everything slow (reading files, asking Task Scheduler, running the list-only pass) happens
     /// on the timer thread or the thread pool, never on the UI thread.

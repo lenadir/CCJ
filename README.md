@@ -160,8 +160,9 @@ the classic layout, set it to `C:\Vox`.
   Spaces in a share name are fine (`\\192.168.100.100\3G eng`).
 - The NAS folder name must be a single name with none of `\ / : * ? " < > |`, not a reserved
   device name (`CON`, `NUL`, `COM1`…), and not padded with spaces or dots.
-- The first run date must be a **Sunday**; the time of day is yours to choose, and the weekly
-  trigger repeats at that time.
+- The first run can be **any date and any time**, including today, so a job can be scheduled
+  straight away. Whatever weekday you pick is the weekday the trigger then repeats on, at the
+  time you set. There is no weekday rule to satisfy.
 - Two jobs may not share a key (they would write the same script) or a job name (they would
   fight over one scheduled task).
 - At least one job must be filled in.
@@ -172,7 +173,8 @@ the classic layout, set it to `C:\Vox`.
 
 Each job becomes a task named `CCJ Backup <JobName>`, configured as:
 
-- **Trigger:** weekly, `WeeksInterval = 3`, Sunday, starting on the chosen date **and time**.
+- **Trigger:** weekly, `WeeksInterval = 3`, on the weekday of the chosen first run, starting at
+  the chosen date **and time**.
 - **Action:** `<Vox root>\Backup_<job>.bat`, starting in `<Vox root>`.
 - **Security:** *Run whether user is logged on or not* (`TaskLogonType.Password`).
 - **Run after a missed start** (`StartWhenAvailable`) is on.
@@ -208,11 +210,11 @@ the Windows password later, press **Save** again to re-register the tasks with t
 | `0x1` | The action failed to launch. | Check the `.bat` path in the task's action. Press **Save** to rewrite it. |
 | `0x2` | File not found. | `Backup_FolderN.bat` is missing from the Vox root. Press **Save**. |
 | `0xA` | Environment is incorrect. | Usually a bad "Start in" folder. Press **Save** to reset it to the Vox root. |
-| `0x41300` | Task is ready, never run. | Normal before the first Sunday. |
+| `0x41300` | Task is ready, never run. | Normal before the first scheduled run. |
 | `0x41301` | Task is currently running. | Wait; the retry loop can last up to 6 × 15 minutes. |
 | `0x41302` | Task is disabled. | Tick **Enabled** for that job on the Jobs tab. |
 | `0x41303` | Task has never run. | Normal for a new task. |
-| `0x41304` | No more runs scheduled. | The start date is in the past with no future occurrence. Set a new Sunday and **Save**. |
+| `0x41304` | No more runs scheduled. | The start date is in the past with no future occurrence. Set a new first run and **Save**. |
 | `0x41306` | Terminated by the user. | Someone pressed End in Task Scheduler. |
 | `0x8004131F` | An instance is already running. | Expected: `IgnoreNew` refused a second copy. |
 | `0x80070005` | Access denied. | Restart CCJ as administrator and save again. |
@@ -292,7 +294,7 @@ dialog lies inside the window, as opened and after a resize.
 ### The progress bar
 
 The Dashboard shows a progress bar for any backup that is running, whether CCJ started it
-(**Run now**, **Test (dry run)**) or Task Scheduler did (the Sunday 00:00 run, found
+(**Run now**, **Test (dry run)**) or Task Scheduler did (a scheduled run, found
 automatically when CCJ is open). It is built **without changing the script**, so the robocopy
 options stay exactly as specified and the fidelity test above still holds. Three things are
 read:

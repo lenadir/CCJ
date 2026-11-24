@@ -40,12 +40,6 @@ namespace CCJ.Services
             return UncRegex.IsMatch(path);
         }
 
-        /// <summary>The first run must be a Sunday, which the weekly trigger then repeats.</summary>
-        public static bool IsSunday(DateTime date)
-        {
-            return date.DayOfWeek == DayOfWeek.Sunday;
-        }
-
         /// <summary>
         /// A single folder name under the NAS root: no path separators, no characters Windows
         /// forbids, not a reserved device name, not dots or spaces only.
@@ -106,10 +100,8 @@ namespace CCJ.Services
                 errors.Add("NAS folder name is not valid. It must be a single folder name with none of " +
                            "these characters: \\ / : * ? \" < > |");
 
-            if (!IsSunday(job.FirstRunDate))
-                errors.Add("First run date must be a Sunday, because the task repeats weekly on " +
-                           "a Sunday. " + job.FirstRunDate.ToString("yyyy-MM-dd") + " is a " +
-                           job.FirstRunDate.DayOfWeek + ".");
+            // The first run is any day and any time the user likes, including today: the task then
+            // repeats on that same weekday. There is deliberately no rule about it.
 
             return errors;
         }

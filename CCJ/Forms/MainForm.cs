@@ -615,7 +615,7 @@ namespace CCJ.Forms
 
             DialogResult answer = MessageBox.Show(this,
                 "Scripts saved.\r\n\r\nCreate or update the " + count + " scheduled task(s) now?\r\n\r\n" +
-                "Each task runs every 3 weeks on its Sunday, at the time set for that job, whether " +
+                "Each task runs every 3 weeks on the day and time set for that job, whether " +
                 "you are logged on or not, so Windows needs your password once to store the task.",
                 "Update scheduled tasks?", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 

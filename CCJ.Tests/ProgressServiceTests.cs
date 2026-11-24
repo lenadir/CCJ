@@ -274,7 +274,7 @@ namespace CCJ.Tests
         [Test]
         public void A_task_that_is_already_running_is_found_without_being_asked()
         {
-            // The Sunday 00:00 run started while CCJ was closed.
+            // The scheduled run started while CCJ was closed.
             DateTime started = DateTime.Now.AddMinutes(-40);
             _tasks["Folder2"] = new TaskRunInfo(true, started);
             File.WriteAllText(MasterPath, ProgressTestSupport.Started("BRAVO") + ProgressTestSupport.Attempt(1, 6) +

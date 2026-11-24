@@ -9,68 +9,67 @@ namespace CCJ.Tests
     [TestFixture]
     public class ValidationTests
     {
-        // ------------------------------------------------------------- the Sunday rule
+        // ------------------------------------------------------- when the first run may be
+        //
+        // There is no weekday rule. A job can be scheduled for any day and any time, including
+        // today, and the weekly trigger then repeats on the weekday that was chosen.
 
         [Test]
-        public void Sunday_is_accepted()
-        {
-            Assert.That(Validation.IsSunday(new DateTime(2026, 11, 22)), Is.True);
-        }
-
-        [Test]
+        [TestCase(2026, 11, 22)] // Sunday
         [TestCase(2026, 11, 16)] // Monday
         [TestCase(2026, 11, 17)] // Tuesday
         [TestCase(2026, 11, 18)] // Wednesday
         [TestCase(2026, 11, 19)] // Thursday
         [TestCase(2026, 11, 20)] // Friday
         [TestCase(2026, 11, 21)] // Saturday
-        public void Every_other_day_is_rejected(int year, int month, int day)
-        {
-            Assert.That(Validation.IsSunday(new DateTime(year, month, day)), Is.False);
-        }
-
-        [Test]
-        public void NextSunday_is_always_a_sunday_in_the_future()
-        {
-            DateTime next = JobsFile.NextSunday();
-
-            Assert.That(next.DayOfWeek, Is.EqualTo(DayOfWeek.Sunday));
-            Assert.That(next.TimeOfDay, Is.EqualTo(TimeSpan.Zero), "the trigger must start at 00:00");
-            Assert.That(next, Is.GreaterThan(DateTime.Today));
-        }
-
-        [Test]
-        public void A_job_on_a_saturday_is_reported()
+        public void Any_weekday_can_be_the_first_run(int year, int month, int day)
         {
             JobConfig job = GoodJob();
-            job.FirstRunDate = new DateTime(2026, 11, 21);
+            job.FirstRunDate = new DateTime(year, month, day);
 
-            List<string> errors = Validation.ValidateJob(job);
+            Assert.That(Validation.ValidateJob(job), Is.Empty,
+                new DateTime(year, month, day).DayOfWeek + " must be allowed");
+        }
 
-            Assert.That(errors.Count, Is.EqualTo(1));
-            Assert.That(errors[0], Does.Contain("Sunday"));
+        [Test]
+        public void A_first_run_today_is_accepted()
+        {
+            JobConfig job = GoodJob();
+            job.FirstRunDate = DateTime.Now;
+
+            Assert.That(Validation.ValidateJob(job), Is.Empty,
+                "a job must be schedulable straight away, without waiting for a particular day");
+        }
+
+        [Test]
+        public void A_first_run_in_the_past_is_accepted()
+        {
+            JobConfig job = GoodJob();
+            job.FirstRunDate = new DateTime(2020, 1, 2, 7, 15, 0);
+
+            Assert.That(Validation.ValidateJob(job), Is.Empty,
+                "an old start date is Task Scheduler's business, not a validation error");
+        }
+
+        [Test]
+        public void The_default_first_run_is_a_few_minutes_away_on_a_round_five_minutes()
+        {
+            DateTime next = JobsFile.DefaultFirstRun();
+
+            Assert.That(next, Is.GreaterThan(DateTime.Now), "it must still be ahead of us");
+            Assert.That(next, Is.LessThan(DateTime.Now.AddMinutes(10)), "and only just ahead");
+            Assert.That(next.Minute % 5, Is.EqualTo(0));
+            Assert.That(next.Second, Is.EqualTo(0));
         }
 
         [Test]
         public void A_first_run_can_have_a_time_of_day()
         {
             JobConfig job = GoodJob();
-            job.FirstRunDate = new DateTime(2026, 11, 22, 3, 30, 0);
+            job.FirstRunDate = new DateTime(2026, 11, 23, 3, 30, 0); // Monday, 03:30
 
             Assert.That(Validation.ValidateJob(job), Is.Empty,
-                "the time of the weekly run is the user's to choose");
-        }
-
-        [Test]
-        public void A_time_of_day_does_not_excuse_the_wrong_weekday()
-        {
-            JobConfig job = GoodJob();
-            job.FirstRunDate = new DateTime(2026, 11, 23, 3, 30, 0); // Monday
-
-            List<string> errors = Validation.ValidateJob(job);
-
-            Assert.That(errors.Count, Is.EqualTo(1));
-            Assert.That(errors[0], Does.Contain("Sunday"));
+                "the day and the time of the weekly run are both the user's to choose");
         }
 
         // ------------------------------------------------------------- folder names
@@ -186,7 +185,7 @@ namespace CCJ.Tests
             List<string> errors = Validation.ValidateJob(new JobConfig());
 
             Assert.That(errors.Count, Is.GreaterThanOrEqualTo(4),
-                "job name, source, NAS root, folder and the Sunday rule should all be reported");
+                "job name, source, NAS root and folder should all be reported");
         }
 
         [Test]
@@ -338,7 +337,7 @@ namespace CCJ.Tests
             job.SourcePath = @"\\192.168.100.205\vox";
             job.NasRoot = @"\\192.168.100.100\3G eng";
             job.NasFolder = "Folder1";
-            job.FirstRunDate = JobsFile.NextSunday();
+            job.FirstRunDate = JobsFile.DefaultFirstRun();
             job.Enabled = true;
             return job;
         }

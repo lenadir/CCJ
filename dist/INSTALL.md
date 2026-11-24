@@ -42,7 +42,8 @@ is in `USER-MANUAL.md`, which is installed alongside the program.
 
 **1. Set up the jobs.** Start CCJ **as administrator** (right-click → Run as administrator — it
 needs this to create scheduled tasks). On the **Jobs** tab fill in the source UNC, NAS root UNC,
-NAS folder, a Sunday date and the time of day for each job you want — one job is enough, and
+NAS folder, the first-run date (today is fine) and the time of day for each job you want — one
+job is enough, and
 **Add another job** gives you more. Tick **Enabled** on the ones that should run, then press
 **Save** and enter the Windows password of the account the backups run as. Jobs you leave empty
 are skipped.

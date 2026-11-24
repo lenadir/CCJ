@@ -69,7 +69,7 @@ namespace CCJ.Forms
 
                 DateTime when = job.FirstRunDate;
                 if (when < this.dtpFirstRun.MinDate || when > this.dtpFirstRun.MaxDate)
-                    when = JobsFile.NextSunday();
+                    when = JobsFile.DefaultFirstRun();
 
                 this.dtpFirstRun.Value = when.Date;
                 this.dtpTime.Value = DateTime.Today.Add(when.TimeOfDay);

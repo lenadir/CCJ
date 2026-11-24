@@ -18,7 +18,7 @@ namespace CCJ.Services
     {
         public const string TaskNamePrefix = "CCJ Backup ";
 
-        /// <summary>Every third Sunday, as the spec requires.</summary>
+        /// <summary>Every third week, as the spec requires.</summary>
         public const short WeeksInterval = 3;
 
         /// <summary>
@@ -62,11 +62,12 @@ namespace CCJ.Services
                 definition.Settings.StopIfGoingOnBatteries = false;
 
                 WeeklyTrigger trigger = new WeeklyTrigger();
-                trigger.DaysOfWeek = DaysOfTheWeek.Sunday;
-                trigger.WeeksInterval = WeeksInterval;
 
-                // Date and time both come from the job, so the run can be put at a quiet hour
-                // instead of always midnight.
+                // Date, weekday and time all come from the job. The first run is whatever moment
+                // the user picked - today, tomorrow, any day - and the task then repeats on that
+                // same weekday at that same time.
+                trigger.DaysOfWeek = Weekday(job.FirstRunDate.DayOfWeek);
+                trigger.WeeksInterval = WeeksInterval;
                 trigger.StartBoundary = job.FirstRunDate;
                 definition.Triggers.Add(trigger);
 
@@ -88,7 +89,7 @@ namespace CCJ.Services
             AppLog.Info("Registered task \"" + job.TaskName + "\" for " + scriptPath +
                         " (enabled=" + job.Enabled + ", first run " +
                         job.FirstRunDate.ToString("yyyy-MM-dd HH:mm") + ", every " + WeeksInterval +
-                        " weeks on Sunday).");
+                        " weeks on " + job.FirstRunDate.DayOfWeek + ").");
         }
 
         /// <summary>
@@ -118,8 +119,8 @@ namespace CCJ.Services
 
         /// <summary>
         /// Whether the job's task is running at this moment, and when it started. Used by the
-        /// progress display to attach to a run that began while CCJ was closed, such as the
-        /// Sunday 00:00 one.
+        /// progress display to attach to a run that began while CCJ was closed, such as a
+        /// scheduled overnight one.
         /// </summary>
         public TaskRunInfo GetRunInfo(JobConfig job)
         {
@@ -222,6 +223,24 @@ namespace CCJ.Services
                 status.Error = ex.Message;
             }
             return status;
+        }
+
+        /// <summary>
+        /// The Task Scheduler flag for a .NET weekday. The weekly trigger repeats on the weekday
+        /// the user's first run falls on, so there is no fixed day built into the app.
+        /// </summary>
+        public static DaysOfTheWeek Weekday(DayOfWeek day)
+        {
+            switch (day)
+            {
+                case DayOfWeek.Monday: return DaysOfTheWeek.Monday;
+                case DayOfWeek.Tuesday: return DaysOfTheWeek.Tuesday;
+                case DayOfWeek.Wednesday: return DaysOfTheWeek.Wednesday;
+                case DayOfWeek.Thursday: return DaysOfTheWeek.Thursday;
+                case DayOfWeek.Friday: return DaysOfTheWeek.Friday;
+                case DayOfWeek.Saturday: return DaysOfTheWeek.Saturday;
+                default: return DaysOfTheWeek.Sunday;
+            }
         }
 
         /// <summary>

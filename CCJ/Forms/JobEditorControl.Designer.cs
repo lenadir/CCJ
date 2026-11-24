@@ -170,7 +170,7 @@ namespace CCJ.Forms
             this.lblFirstRun.Name = "lblFirstRun";
             this.lblFirstRun.Size = new System.Drawing.Size(120, 15);
             this.lblFirstRun.TabIndex = 9;
-            this.lblFirstRun.Text = "First run (a Sunday)";
+            this.lblFirstRun.Text = "First run";
             //
             // dtpFirstRun
             //

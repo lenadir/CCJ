@@ -83,7 +83,7 @@ namespace CCJ.Services
             job.SourcePath = source;
             job.NasRoot = nasRoot;
             job.NasFolder = "Folder1";
-            job.FirstRunDate = JobsFile.NextSunday();
+            job.FirstRunDate = JobsFile.DefaultFirstRun();
             job.Enabled = true;
 
             ScriptGenerator generator = new ScriptGenerator();
@@ -155,8 +155,6 @@ namespace CCJ.Services
             }
 
             // 6. Validation rules.
-            Check("Sunday accepted", Validation.IsSunday(JobsFile.NextSunday()), "");
-            Check("Monday rejected", !Validation.IsSunday(JobsFile.NextSunday().AddDays(1)), "");
             Check("good folder name accepted", Validation.IsValidFolderName("Folder1"), "");
             Check("folder name with a backslash rejected", !Validation.IsValidFolderName("a\\b"), "");
             Check("folder name with a colon rejected", !Validation.IsValidFolderName("a:b"), "");
@@ -180,14 +178,32 @@ namespace CCJ.Services
             oneOnly.SourcePath = @"\\host\share";
             oneOnly.NasRoot = @"\\nas\share";
             oneOnly.NasFolder = "Folder1";
-            oneOnly.FirstRunDate = JobsFile.NextSunday().AddHours(2).AddMinutes(30);
+            oneOnly.FirstRunDate = DateTime.Today.AddHours(2).AddMinutes(30);
 
             JobsFile single = new JobsFile();
             single.VoxRoot = voxRoot;
             single.Jobs.Add(oneOnly);
             Check("one filled in job is enough to save", Validation.ValidateFile(single).Count == 0, "");
             Check("a run time other than midnight is allowed",
-                  Validation.ValidateJob(oneOnly).Count == 0, "02:30 on a Sunday");
+                  Validation.ValidateJob(oneOnly).Count == 0,
+                  oneOnly.FirstRunDate.ToString("yyyy-MM-dd HH:mm"));
+
+            // Any day, including today, can be scheduled: there is no Sunday rule any more, and the
+            // weekly trigger simply repeats on the weekday of whatever first run was chosen.
+            bool everyDayAccepted = true;
+            bool weekdayFollowsTheDate = true;
+            for (int day = 0; day < 7; day++)
+            {
+                JobConfig onThisDay = oneOnly.Clone();
+                onThisDay.FirstRunDate = DateTime.Today.AddDays(day).AddHours(2);
+                if (Validation.ValidateJob(onThisDay).Count != 0) everyDayAccepted = false;
+                if (TaskSchedulerService.Weekday(onThisDay.FirstRunDate.DayOfWeek).ToString() !=
+                    onThisDay.FirstRunDate.DayOfWeek.ToString()) weekdayFollowsTheDate = false;
+            }
+            Check("any weekday can be the first run", everyDayAccepted, "all seven days accepted");
+            Check("the trigger repeats on the weekday that was chosen", weekdayFollowsTheDate, "");
+            Check("a first run today is accepted",
+                  Validation.ValidateJob(oneOnly).Count == 0, DateTime.Today.ToString("yyyy-MM-dd"));
 
             // 6c. Finding the robocopy process of a run, which is what Pause, Resume and Stop act on.
             string runLog = @"C:\Vox\Logs\NADIR_2026-11-22_00-00-05.log";
@@ -252,7 +268,7 @@ namespace CCJ.Services
             job.SourcePath = src;
             job.NasRoot = nas;
             job.NasFolder = "Folder1";
-            job.FirstRunDate = JobsFile.NextSunday();
+            job.FirstRunDate = JobsFile.DefaultFirstRun();
 
             ScriptGenerator generator = new ScriptGenerator();
             string scriptPath = job.ScriptPath(vox);
